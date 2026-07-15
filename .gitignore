@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Production build output
+build/
+dist/
+
+# Environment files (contain the backend URL config)
+# .env.example stays in git as the template
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vite cache (Vite files kept in project after CRA conversion)
+.vite/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

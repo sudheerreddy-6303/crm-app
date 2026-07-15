@@ -1,5 +1,7 @@
-// In production set VITE_API_URL to your backend URL (e.g. https://your-backend.up.railway.app)
-const BASE = import.meta.env.VITE_API_URL || "";
+// In production set REACT_APP_API_URL to your backend URL (e.g. https://your-backend.up.railway.app)
+// ORIGINAL (Vite): const BASE = import.meta.env.VITE_API_URL || "";
+// ADDED (CRA): Create React App reads env variables from process.env.REACT_APP_*
+const BASE = process.env.REACT_APP_API_URL || "";
 
 export function getToken() {
   return localStorage.getItem("telecrm_token");
