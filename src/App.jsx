@@ -7,6 +7,8 @@ import Leads from "./pages/Leads.jsx";
 import Telecallers from "./pages/Telecallers.jsx";
 import TelecallerDetail from "./pages/TelecallerDetail.jsx";
 import ImportLeads from "./pages/ImportLeads.jsx";
+// ADDED: Service Calls page for the new sidebar button
+import ServiceCalls from "./pages/ServiceCalls.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -32,6 +34,8 @@ function Shell({ children }) {
         <nav>
           <NavLink to="/dashboard">📊 Dashboard</NavLink>
           <NavLink to="/leads">📋 Leads</NavLink>
+          {/* ADDED: Service Calls button in the left sidebar */}
+          <NavLink to="/service-calls">🛠️ Service Calls</NavLink>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
           {user?.role === "admin" && <NavLink to="/import">⬆️ Import</NavLink>}
         </nav>
@@ -64,6 +68,8 @@ export default function App() {
       <Route path="/telecallers" element={<Protected adminOnly><Telecallers /></Protected>} />
       <Route path="/telecallers/:id" element={<Protected adminOnly><TelecallerDetail /></Protected>} />
       <Route path="/import" element={<Protected adminOnly><ImportLeads /></Protected>} />
+      {/* ADDED: route for the new Service Calls sidebar button */}
+      <Route path="/service-calls" element={<Protected><ServiceCalls /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

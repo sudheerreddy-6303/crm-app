@@ -28,9 +28,12 @@ function parseCSV(text) {
 
 // ADDED: sample Excel file the admin can download as a reference / template.
 // Uses the already-imported XLSX (SheetJS) library, so no new dependencies.
-// Only "Name" and "Primary Phone" are mandatory; every other column is optional.
+// ADDED: "Project Name" is now MANDATORY (first column), along with Name and
+// Primary Phone; every other column is optional.
 function downloadSample() {
   const sampleHeaders = [
+    // ADDED: mandatory Project Name as the first column
+    "Project Name",
     "Name", "Primary Phone", "1st Calling date", "2nd Calling date",
     "Call Category", "Quote Sent", "Order Booked", "WhatsApp date",
     "WhatsApp Category", "Calling remark", "Next call date",
@@ -38,19 +41,21 @@ function downloadSample() {
     "Telecaller",
   ];
   const sampleRows = [
-    ["Ravi Kumar", "9876543210", "2026-07-10", "2026-07-12", "INTERESTED", "Yes", "No", "2026-07-12", "Catalogue sent", "Wants modular kitchen quote", "2026-07-18", "sakshi"],
-    ["Priya Sharma", "9123456780", "2026-07-11", "", "FOLLOW UP", "No", "No", "", "", "Asked to call back next week", "2026-07-20", "sakshi"],
-    ["Anil Reddy", "9012345678", "2026-07-09", "2026-07-14", "NOT ANSWERED", "No", "No", "", "", "Phone switched off", "2026-07-16", ""],
-    ["Sunitha Rao", "9988776655", "2026-07-08", "", "NOT INTERESTED", "No", "No", "2026-07-08", "Intro message", "Already completed interiors work", "", ""],
-    ["Mohammed Irfan", "9090909090", "", "", "", "", "", "", "", "", "", ""],
+    ["Kondapur Villa", "Ravi Kumar", "9876543210", "2026-07-10", "2026-07-12", "INTERESTED", "Yes", "No", "2026-07-12", "Catalogue sent", "Wants modular kitchen quote", "2026-07-18", "sakshi"],
+    ["Gachibowli 3BHK", "Priya Sharma", "9123456780", "2026-07-11", "", "FOLLOW UP", "No", "No", "", "", "Asked to call back next week", "2026-07-20", "sakshi"],
+    ["Medchal Duplex", "Anil Reddy", "9012345678", "2026-07-09", "2026-07-14", "NOT ANSWERED", "No", "No", "", "", "Phone switched off", "2026-07-16", ""],
+    ["Kukatpally Flat", "Sunitha Rao", "9988776655", "2026-07-08", "", "NOT INTERESTED", "No", "No", "2026-07-08", "Intro message", "Already completed interiors work", "", ""],
+    ["Miyapur Kitchen", "Mohammed Irfan", "9090909090", "", "", "", "", "", "", "", "", "", ""],
   ];
   const ws = XLSX.utils.aoa_to_sheet([sampleHeaders, ...sampleRows]);
   // Keep the phone column as text so Excel does not turn numbers into 9.8765E+09
+  // UPDATED: phone moved from column B to column C (Project Name is now column A)
   for (let r = 1; r <= sampleRows.length; r++) {
-    const cell = ws["B" + (r + 1)];
+    const cell = ws["C" + (r + 1)];
     if (cell) { cell.t = "s"; cell.v = String(cell.v); }
   }
-  ws["!cols"] = [16, 15, 16, 16, 16, 11, 13, 15, 18, 32, 14, 14].map((w) => ({ wch: w }));
+  // UPDATED: added a width for the new Project Name column (first entry)
+  ws["!cols"] = [18, 16, 15, 16, 16, 16, 11, 13, 15, 18, 32, 14, 14].map((w) => ({ wch: w }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Leads");
   XLSX.writeFile(wb, "TeleCRM_Sample_Leads_Import.xlsx");
@@ -61,6 +66,10 @@ const HEADER_MAP = {
   "name": "name",
   "lead name": "name",
   "customer name": "name",
+  // ADDED: Project Name column (MANDATORY for import)
+  "project name": "project_name",
+  "project": "project_name",
+  "projectname": "project_name",
   "primary phone": "primary_phone",
   "phone": "primary_phone",
   "mobile": "primary_phone",
@@ -115,6 +124,8 @@ export default function ImportLeads() {
   const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState({ type: "", text: "" });
   const [importing, setImporting] = useState(false);
+  // ADDED: success popup shown after an import completes
+  const [successPopup, setSuccessPopup] = useState(null);
 
   // ORIGINAL CODE (only supported CSV files - Excel .xlsx uploads were rejected):
   // const handleFile = (file) => {
@@ -135,8 +146,14 @@ export default function ImportLeads() {
     if (!headers.includes("name") || !headers.includes("primary_phone")) {
       return setMsg({ type: "error", text: 'Could not find "Name" and "Primary Phone" columns. Check your header row.' });
     }
+    // ADDED: Project Name is now mandatory for import - the column must exist
+    if (!headers.includes("project_name")) {
+      return setMsg({ type: "error", text: 'Could not find the mandatory "Project Name" column. Please add it to your file (download the sample Excel for reference).' });
+    }
     const seenPhones = new Set();
     let duplicates = 0, invalid = 0;
+    // ADDED: count rows rejected because the mandatory Project Name cell is empty
+    let missingProject = 0;
     const mapped = parsed.slice(1).map((r) => {
       const obj = {};
       headers.forEach((h, i) => { if (h) obj[h] = String(r[i] ?? "").trim(); });
@@ -152,15 +169,24 @@ export default function ImportLeads() {
       return obj;
     }).filter((o) => {
       if (!o.name && !o.primary_phone) return false;            // empty row
-      if (!o.name || o.primary_phone.length < 10) { invalid++; return false; } // missing name or bad phone
+      // ORIGINAL: if (!o.name || o.primary_phone.length < 10) { invalid++; return false; } // missing name or bad phone
+      // ADDED: also reject phones LONGER than 15 digits - Excel scientific notation
+      // corruption can produce 20+ digit garbage values that crash the database insert
+      if (!o.name || o.primary_phone.length < 10 || o.primary_phone.length > 15) { invalid++; return false; } // missing name or bad phone
+      // ADDED: reject rows without the mandatory Project Name
+      if (!o.project_name || !o.project_name.trim()) { missingProject++; return false; }
       if (seenPhones.has(o.primary_phone)) { duplicates++; return false; }     // duplicate phone
       seenPhones.add(o.primary_phone);
       return true;
     });
     setRows(mapped);
-    const skippedNote = (invalid || duplicates)
-      ? ` Skipped ${invalid} invalid row(s) (missing name or phone shorter than 10 digits) and ${duplicates} duplicate phone number(s).`
-      : "";
+    // ORIGINAL: const skippedNote = (invalid || duplicates) ? ... : "";
+    // ADDED: also mention rows skipped for missing Project Name
+    const notes = [];
+    if (invalid) notes.push(`${invalid} invalid row(s) (missing name or phone shorter than 10 digits)`);
+    if (missingProject) notes.push(`${missingProject} row(s) missing the mandatory Project Name`);
+    if (duplicates) notes.push(`${duplicates} duplicate phone number(s)`);
+    const skippedNote = notes.length ? ` Skipped ${notes.join(", ")}.` : "";
     setMsg({ type: "success", text: `${mapped.length} valid row(s) ready to import.${skippedNote} Review the preview below.` });
   };
 
@@ -195,6 +221,8 @@ export default function ImportLeads() {
     try {
       const data = await api("/leads/import", { method: "POST", body: JSON.stringify({ rows }) });
       setMsg({ type: "success", text: data.message });
+      // ADDED: show a success popup with the import summary
+      setSuccessPopup(data);
       setRows([]);
     } catch (e) {
       setMsg({ type: "error", text: e.message });
@@ -209,7 +237,9 @@ export default function ImportLeads() {
       <p className="page-sub">
         {/* ORIGINAL: CSV only. Now supports Excel (.xlsx / .xls) directly plus CSV. */}
         Upload your Excel file (.xlsx / .xls) directly, or a CSV export.
-        Recognised columns: Name, Primary Phone, 1st Calling date, 2nd Calling date, Call Category,
+        {/* ADDED: Project Name is now a mandatory column */}
+        {" "}The <strong>Project Name</strong> column is mandatory - rows without it are skipped.
+        Recognised columns: Project Name, Name, Primary Phone, 1st Calling date, 2nd Calling date, Call Category,
         Quote Sent, Order Booked, WhatsApp date, WhatsApp Category, Calling remark, Next call date.
         {/* ADDED: telecaller assignment support during import */}
         {" "}You can also add a <strong>Telecaller</strong> column (telecaller's name or email) to
@@ -231,7 +261,7 @@ export default function ImportLeads() {
             Download sample Excel
           </button>
           <span className="page-sub" style={{ margin: 0 }}>
-            Reference file with all recognised columns. Only Name and Primary Phone are mandatory.
+            Reference file with all recognised columns. Project Name, Name and Primary Phone are mandatory.
           </span>
         </div>
       </div>
@@ -243,6 +273,8 @@ export default function ImportLeads() {
               <table>
                 <thead>
                   <tr>
+                    {/* ADDED: Project column (mandatory) shown first */}
+                    <th>Project</th>
                     <th>Name</th><th>Phone</th><th>1st call</th><th>Category</th>
                     <th>Quote</th><th>Order</th><th>WA date</th><th>WA cat</th><th>Remark</th><th>Telecaller</th>
                   </tr>
@@ -250,6 +282,8 @@ export default function ImportLeads() {
                 <tbody>
                   {rows.slice(0, 100).map((r, i) => (
                     <tr key={i}>
+                      {/* ADDED: mandatory project name cell */}
+                      <td>{r.project_name}</td>
                       <td>{r.name}</td><td>{r.primary_phone}</td><td>{r.first_calling_date || "-"}</td>
                       <td>{r.call_category || "-"}</td><td>{r.quote_sent || "-"}</td><td>{r.order_booked || "-"}</td>
                       <td>{r.whatsapp_sent_date || "-"}</td><td>{r.whatsapp_category || "-"}</td>
@@ -265,6 +299,51 @@ export default function ImportLeads() {
             {importing ? "Importing..." : `Import ${rows.length} lead(s)`}
           </button>
         </>
+      )}
+
+      {/* ADDED: success popup shown after the import finishes */}
+      {successPopup && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+          onClick={() => setSuccessPopup(null)}
+        >
+          <div
+            style={{
+              background: "#fff", borderRadius: 12, padding: "28px 32px",
+              maxWidth: 420, width: "90%", textAlign: "center",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 48, lineHeight: 1 }}>✅</div>
+            <h2 style={{ margin: "12px 0 6px", fontSize: 20 }}>Import Successful!</h2>
+            <p style={{ margin: "0 0 6px", color: "#444" }}>
+              {successPopup.inserted} lead(s) imported successfully.
+            </p>
+            {successPopup.duplicates > 0 && (
+              <p style={{ margin: "0 0 6px", color: "#b45309" }}>
+                {successPopup.duplicates} duplicate(s) were rejected (already in the database).
+              </p>
+            )}
+            {successPopup.skipped > 0 && (
+              <p style={{ margin: "0 0 6px", color: "#666" }}>
+                {successPopup.skipped} row(s) skipped (missing name/phone).
+              </p>
+            )}
+            {/* ADDED: rows rejected for invalid phone length (Excel corruption) */}
+            {successPopup.invalidPhone > 0 && (
+              <p style={{ margin: "0 0 6px", color: "#b91c1c" }}>
+                {successPopup.invalidPhone} row(s) rejected for invalid phone numbers.
+              </p>
+            )}
+            <button className="btn" style={{ marginTop: 14 }} onClick={() => setSuccessPopup(null)}>
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

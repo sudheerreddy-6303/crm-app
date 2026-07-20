@@ -8,6 +8,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
   const isNew = !lead.id;
   const [form, setForm] = useState({
     name: lead.name || "",
+    // ADDED: project name (mandatory during Excel import, editable here by admin)
+    project_name: lead.project_name || "",
     primary_phone: lead.primary_phone || "",
     assigned_to: lead.assigned_to || "",
     first_calling_date: fmt(lead.first_calling_date),
@@ -64,6 +66,11 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           <div>
             <label>Name {isAdmin ? "" : "(admin only)"}</label>
             <input value={form.name} onChange={(e) => set("name", e.target.value)} disabled={!isAdmin} />
+          </div>
+          {/* ADDED: Project Name field (mandatory during Excel import) */}
+          <div>
+            <label>Project name {isAdmin ? "" : "(admin only)"}</label>
+            <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} disabled={!isAdmin} />
           </div>
           <div>
             <label>Primary phone</label>

@@ -116,7 +116,7 @@ export default function Leads() {
           onChange={(e) => { setPage(1); setFilters({ ...filters, search: e.target.value }); }}
         />
         <select value={filters.category} onChange={(e) => { setPage(1); setFilters({ ...filters, category: e.target.value }); }}>
-          <option value="">All categories</option>
+          <option value="">Categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           {/* ADDED: matches the "Fresh (not called)" dashboard card */}
           <option value="FRESH">FRESH (NOT CALLED)</option>
@@ -129,7 +129,7 @@ export default function Leads() {
         </select>
         {isAdmin && (
           <select value={filters.assigned} onChange={(e) => { setPage(1); setFilters({ ...filters, assigned: e.target.value }); }}>
-            <option value="">All telecallers</option>
+            <option value="">Telecallers</option>
             <option value="unassigned">Unassigned</option>
             {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -161,6 +161,8 @@ export default function Leads() {
                   </th>
                 )}
                 <th>Name</th>
+                {/* ADDED: mandatory Project Name from Excel import */}
+                <th>Project</th>
                 <th>Primary phone</th>
                 {isAdmin && <th>Caller</th>}
                 <th>1st call</th>
@@ -177,7 +179,7 @@ export default function Leads() {
             </thead>
             <tbody>
               {leads.length === 0 && (
-                <tr><td colSpan="14" className="empty">No leads found.</td></tr>
+                <tr><td colSpan="15" className="empty">No leads found.</td></tr>
               )}
               {leads.map((l) => (
                 <tr key={l.id}>
@@ -190,6 +192,8 @@ export default function Leads() {
                     <span className={`dot ${l.priority || "none"}`}></span>
                     <strong>{l.name}</strong>
                   </td>
+                  {/* ADDED: project name cell */}
+                  <td>{l.project_name || "-"}</td>
                   <td>
                     <a className="wa-link" href={`https://wa.me/91${l.primary_phone}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
                       {l.primary_phone}
