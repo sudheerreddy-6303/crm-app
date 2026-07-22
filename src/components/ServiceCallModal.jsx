@@ -8,6 +8,10 @@ import { api } from "../api.js";
 export const SERVICE_CATEGORIES = [
   "Painter", "Electrician", "Designer", "Sales",
   "Carpenter", "Plumber", "Deep Cleaning", "Other",
+  // ADDED: more service categories
+  "Glass Work", "Marbles Work", "Tele Callers", "Sales Executive",
+  "Interior Designer", "Builders", "False Ceiling", "AC Repair",
+  "Printer Repair", "Chair Repair", "Site Managers",
 ];
 
 export default function ServiceCallModal({ call, onClose, onSaved }) {
