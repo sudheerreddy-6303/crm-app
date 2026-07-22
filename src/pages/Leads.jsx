@@ -5,6 +5,45 @@ import LeadModal from "../components/LeadModal.jsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 
+// ADDED: WhatsApp helpers.
+// Builds a wa.me link that opens WhatsApp (mobile app on phones, WhatsApp Web /
+// Desktop on computers) with the lead's number selected and a greeting message
+// pre-typed. The message is sent from whichever WhatsApp account is logged in on
+// that device/browser - i.e. your company WhatsApp when it is the active account.
+// NOTE: WhatsApp does not allow a link to auto-press "Send"; the user taps send.
+function waNumber(rawPhone) {
+  // keep digits only
+  let digits = String(rawPhone || "").replace(/\D/g, "");
+  // A plain 10-digit Indian mobile needs the 91 country code.
+  // Numbers that already include a country code (11-15 digits) are used as-is.
+  if (digits.length === 10) digits = "91" + digits;
+  return digits;
+}
+function waMessage(lead) {
+  const name = lead.name ? ` ${lead.name}` : "";
+  const project = lead.project_name ? ` regarding *${lead.project_name}*` : "";
+  // Customise this greeting to whatever your team should send.
+  return `Hello${name}, this is Deeraj Interiors${project}. Thank you for your interest - how can we help you today?`;
+}
+function openWhatsApp(lead) {
+  const num = waNumber(lead.primary_phone);
+  if (!num || num.length < 11) {
+    alert("This lead does not have a valid phone number for WhatsApp.");
+    return;
+  }
+  const url = `https://wa.me/${num}?text=${encodeURIComponent(waMessage(lead))}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+// Small inline WhatsApp glyph so we don't add an icon dependency.
+function WhatsAppIcon() {
+  return (
+    <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M16 3C9.4 3 4 8.4 4 15c0 2.1.6 4.2 1.6 6L4 29l8.2-1.6c1.7.9 3.7 1.4 5.8 1.4h.001C24.6 28.8 30 23.4 30 16.8 30 9.4 24.6 3 16 3zm.02 22.3c-1.8 0-3.6-.5-5.1-1.4l-.4-.2-4.9 1 1-4.8-.3-.4C5.4 18.6 5 16.8 5 15c0-5.5 4.5-10 10-10s10 4.5 10 10-4.5 10-8.98 10.3zm5.5-7.5c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.2-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.4z"/>
+    </svg>
+  );
+}
+
 export default function Leads() {
   const user = getUser();
   const isAdmin = user.role === "admin";
@@ -195,7 +234,15 @@ export default function Leads() {
                   {/* ADDED: project name cell */}
                   <td>{l.project_name || "-"}</td>
                   <td>
-                    <a className="wa-link" href={`https://wa.me/91${l.primary_phone}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
+                    {/* UPDATED: clicking the number opens WhatsApp with the greeting
+                        pre-typed, using the same robust number handling as the icon. */}
+                    <a
+                      className="wa-link"
+                      href={`https://wa.me/${waNumber(l.primary_phone)}?text=${encodeURIComponent(waMessage(l))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open WhatsApp chat"
+                    >
                       {l.primary_phone}
                     </a>
                   </td>
@@ -228,6 +275,14 @@ export default function Leads() {
                   <td>{fmt(l.next_call_date) || "-"}</td>
                   <td>
                     <div className="row-actions">
+                      {/* ADDED: WhatsApp button - opens WhatsApp with number + message ready */}
+                      <button
+                        className="btn small wa-btn"
+                        title="Send WhatsApp message"
+                        onClick={() => openWhatsApp(l)}
+                      >
+                        <WhatsAppIcon />
+                      </button>
                       <button className="btn small secondary" onClick={() => setModalLead(l)}>Edit</button>
                       {isAdmin && <button className="btn small danger" onClick={() => removeLead(l.id)}>Del</button>}
                     </div>

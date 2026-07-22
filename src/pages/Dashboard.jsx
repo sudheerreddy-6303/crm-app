@@ -49,7 +49,11 @@ export default function Dashboard() {
     { label: "Orders booked", value: t.orders_booked, cls: "k-green", link: "/leads?order=Yes" },
     { label: "Calls due today", value: t.due_today, cls: "k-amber", link: "/leads?due=today" },
     ...(user.role === "admin"
-      ? [{ label: "Unassigned leads", value: data.unassigned, cls: "k-red", link: "/leads?assigned=unassigned" }]
+      ? [
+          { label: "Unassigned leads", value: data.unassigned, cls: "k-red", link: "/leads?assigned=unassigned" },
+          // ADDED: total walk-ins visited (admin only) - opens the Walk-ins page
+          { label: "Walk-ins visited", value: data.walkins, cls: "k-green", link: "/walkins" },
+        ]
       : []),
   ];
 

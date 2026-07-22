@@ -9,6 +9,10 @@ import TelecallerDetail from "./pages/TelecallerDetail.jsx";
 import ImportLeads from "./pages/ImportLeads.jsx";
 // ADDED: Service Calls page for the new sidebar button
 import ServiceCalls from "./pages/ServiceCalls.jsx";
+// ADDED: Walk-ins page for the new sidebar button
+import Walkins from "./pages/Walkins.jsx";
+// ADDED: Project Details page for the new sidebar button
+import ProjectDetails from "./pages/ProjectDetails.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -36,6 +40,10 @@ function Shell({ children }) {
           <NavLink to="/leads">📋 Leads</NavLink>
           {/* ADDED: Service Calls button in the left sidebar */}
           <NavLink to="/service-calls">🛠️ Service Calls</NavLink>
+          {/* ADDED: Walk-ins button in the left sidebar */}
+          <NavLink to="/walkins">🚶 Walk-ins</NavLink>
+          {/* ADDED: Project Details button in the left sidebar */}
+          <NavLink to="/project-details">🏗️ Project Details</NavLink>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
           {user?.role === "admin" && <NavLink to="/import">⬆️ Import</NavLink>}
         </nav>
@@ -70,6 +78,10 @@ export default function App() {
       <Route path="/import" element={<Protected adminOnly><ImportLeads /></Protected>} />
       {/* ADDED: route for the new Service Calls sidebar button */}
       <Route path="/service-calls" element={<Protected><ServiceCalls /></Protected>} />
+      {/* ADDED: route for the new Walk-ins sidebar button */}
+      <Route path="/walkins" element={<Protected><Walkins /></Protected>} />
+      {/* ADDED: route for the new Project Details sidebar button */}
+      <Route path="/project-details" element={<Protected><ProjectDetails /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

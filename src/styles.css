@@ -199,7 +199,18 @@ textarea { resize: vertical; min-height: 70px; }
 .pagination { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
 .wa-link { color: #128c7e; text-decoration: none; font-weight: 600; }
 .wa-link:hover { text-decoration: underline; }
-.row-actions { display: flex; gap: 6px; }
+.row-actions { display: flex; gap: 6px; align-items: center; }
+/* ADDED: green WhatsApp icon button */
+.wa-btn {
+  background: #25d366;
+  border: none;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+.wa-btn:hover { background: #1da851; }
 .checkbox-cell { width: 34px; }
 .import-preview { font-size: 12px; }
 .topbar-mobile { display: none; }
