@@ -65,7 +65,12 @@ export default function Leads() {
     quote: searchParams.get("quote") || "",
     order: searchParams.get("order") || "",
     due: searchParams.get("due") || "",
+    // ADDED: project filter, initialised from the URL so a project-filtered
+    // dashboard card opens the leads already scoped to that project.
+    project: searchParams.get("project") || "",
   });
+  // ADDED: project names for the filter dropdown
+  const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState([]);
   const [assignTo, setAssignTo] = useState("");
   const [modalLead, setModalLead] = useState(null); // null closed, {} new, {..} edit
@@ -90,6 +95,11 @@ export default function Leads() {
       api("/users").then((rows) => setTelecallers(rows.filter((r) => r.role === "telecaller"))).catch(() => {});
     }
   }, [isAdmin]);
+
+  // ADDED: load project names (admin: all; telecaller: only their own leads' projects)
+  useEffect(() => {
+    api("/dashboard/projects").then((d) => setProjects(d.projects || [])).catch(() => {});
+  }, []);
 
   const flash = (type, text) => {
     setMsg({ type, text });
@@ -165,6 +175,12 @@ export default function Leads() {
         </select>
         <select value={filters.order} onChange={(e) => { setPage(1); setFilters({ ...filters, order: e.target.value }); }}>
           <option value="">Order booked?</option><option>Yes</option><option>No</option>
+        </select>
+        {/* ADDED: project filter - also set automatically when arriving from a
+            project-filtered dashboard card (via ?project= in the URL) */}
+        <select value={filters.project} onChange={(e) => { setPage(1); setFilters({ ...filters, project: e.target.value }); }}>
+          <option value="">Projects</option>
+          {projects.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         {isAdmin && (
           <select value={filters.assigned} onChange={(e) => { setPage(1); setFilters({ ...filters, assigned: e.target.value }); }}>

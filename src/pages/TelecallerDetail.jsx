@@ -10,17 +10,31 @@ export default function TelecallerDetail() {
   const [error, setError] = useState("");
   // ADDED: calendar filter (from / to dates)
   const [range, setRange] = useState({ from: "", to: "" });
+  // ADDED: project filter - when a project is picked, the cards, calls-per-day
+  // table and leads list below reflect only this telecaller's work on it.
+  const [project, setProject] = useState("");
+  const [projects, setProjects] = useState([]); // dropdown options
   // hook called at the top, before any early return (Rules of Hooks)
   const navigate = useNavigate();
+
+  // ADDED: load the project names for this telecaller (only projects that appear
+  // on their assigned leads) to populate the filter dropdown.
+  useEffect(() => {
+    api(`/dashboard/projects?assigned=${id}`)
+      .then((d) => setProjects(d.projects || []))
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     const q = new URLSearchParams();
     if (range.from) q.set("from", range.from);
     if (range.to) q.set("to", range.to);
+    // ADDED: pass the selected project so the activity data is project-scoped
+    if (project) q.set("project", project);
     api(`/users/${id}/activity${q.toString() ? `?${q}` : ""}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [id, range]);
+  }, [id, range, project]);
 
   if (error) return <div className="error-msg">{error}</div>;
   if (!data) return <div className="empty">Loading telecaller activity...</div>;
@@ -51,8 +65,14 @@ export default function TelecallerDetail() {
     { label: "Orders booked", value: totals.orders_booked, cls: "k-green", link: `/leads?assigned=${user.id}&order=Yes` },
   ];
 
+  // ADDED: keep the project filter when drilling into the Leads page from a card
+  const withProject = (link) => {
+    if (!project || !link) return link;
+    return link + (link.includes("?") ? "&" : "?") + `project=${encodeURIComponent(project)}`;
+  };
+
   const cardClick = (c) => {
-    if (c.link) navigate(c.link);
+    if (c.link) navigate(withProject(c.link));
     else document.getElementById("calls-per-day")?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -67,6 +87,16 @@ export default function TelecallerDetail() {
 
       {/* ADDED: calendar filter - pick a date range to check the data for that period */}
       <div className="filters">
+        {/* ADDED: project filter - rescopes this telecaller's cards and tables */}
+        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)" }}>Project</label>
+        <select
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          style={{ padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 8, background: "#fff", minWidth: 160 }}
+        >
+          <option value="">Projects</option>
+          {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
         <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)" }}>From</label>
         <input type="date" value={range.from} max={range.to || undefined}
                onChange={(e) => setRange({ ...range, from: e.target.value })}

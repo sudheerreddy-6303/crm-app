@@ -8,19 +8,32 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   // ADDED: calendar filter (from / to dates) - all dashboard data follows it
   const [range, setRange] = useState({ from: "", to: "" });
+  // ADDED: project filter - when a project is picked, every card, the telecaller
+  // performance table and the follow-ups list below reflect only that project.
+  const [project, setProject] = useState("");
+  const [projects, setProjects] = useState([]); // dropdown options
   // MOVED UP (hooks fix): useNavigate must be called before any early return,
   // otherwise React throws "change in the order of Hooks" - it was previously
   // below the `if (error) return ...` lines
   const navigate = useNavigate();
 
+  // ADDED: load the list of project names once for the filter dropdown
+  useEffect(() => {
+    api("/dashboard/projects")
+      .then((d) => setProjects(d.projects || []))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const q = new URLSearchParams();
     if (range.from) q.set("from", range.from);
     if (range.to) q.set("to", range.to);
+    // ADDED: pass the selected project so the returned totals are project-scoped
+    if (project) q.set("project", project);
     api(`/dashboard${q.toString() ? `?${q}` : ""}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [range]);
+  }, [range, project]);
 
   if (error) return <div className="error-msg">{error}</div>;
   if (!data) return <div className="empty">Loading dashboard...</div>;
@@ -57,6 +70,14 @@ export default function Dashboard() {
       : []),
   ];
 
+  // ADDED: keeps the project filter when drilling into the Leads page from a
+  // card, so the leads shown there match the (project-filtered) card number.
+  // Only lead cards carry it; the Walk-ins card is left untouched.
+  const withProject = (link) => {
+    if (!project || !link || !link.startsWith("/leads")) return link;
+    return link + (link.includes("?") ? "&" : "?") + `project=${encodeURIComponent(project)}`;
+  };
+
   return (
     <div>
       <h1 className="page-title">Dashboard</h1>
@@ -68,6 +89,16 @@ export default function Dashboard() {
 
       {/* ADDED: calendar filter - all cards, performance and follow-ups follow it */}
       <div className="filters">
+        {/* ADDED: project filter - selecting a project rescopes all the data below */}
+        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)" }}>Project</label>
+        <select
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          style={{ padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 8, background: "#fff", minWidth: 160 }}
+        >
+          <option value="">Projects</option>
+          {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
         <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)" }}>From</label>
         <input type="date" value={range.from} max={range.to || undefined}
                onChange={(e) => setRange({ ...range, from: e.target.value })}
@@ -95,7 +126,7 @@ export default function Dashboard() {
           <div className="col" key={c.label}>
             <div
               className={`kpi kpi-lg clickable ${c.cls}`}
-              onClick={() => navigate(c.link)}
+              onClick={() => navigate(withProject(c.link))}
               title={`View ${c.label.toLowerCase()}`}
             >
               <div className="label">{c.label}</div>
