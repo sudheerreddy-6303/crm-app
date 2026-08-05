@@ -66,6 +66,8 @@ export default function Dashboard() {
           { label: "Unassigned leads", value: data.unassigned, cls: "k-red", link: "/leads?assigned=unassigned" },
           // ADDED: total walk-ins visited (admin only) - opens the Walk-ins page
           { label: "Walk-ins visited", value: data.walkins, cls: "k-green", link: "/walkins" },
+          // ADDED: total projects in the database (admin only) - opens the project cards grid
+          { label: "Total projects", value: data.projects_count, cls: "k-blue", link: "/project-cards" },
         ]
       : []),
   ];

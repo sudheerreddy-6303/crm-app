@@ -13,6 +13,8 @@ import ServiceCalls from "./pages/ServiceCalls.jsx";
 import Walkins from "./pages/Walkins.jsx";
 // ADDED: Project Details page for the new sidebar button
 import ProjectDetails from "./pages/ProjectDetails.jsx";
+// ADDED: Project cards page - opened from the dashboard "Total projects" card
+import ProjectCards from "./pages/ProjectCards.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -82,6 +84,8 @@ export default function App() {
       <Route path="/walkins" element={<Protected><Walkins /></Protected>} />
       {/* ADDED: route for the new Project Details sidebar button */}
       <Route path="/project-details" element={<Protected><ProjectDetails /></Protected>} />
+      {/* ADDED: route for the project cards grid (from the dashboard "Total projects" card) */}
+      <Route path="/project-cards" element={<Protected><ProjectCards /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
