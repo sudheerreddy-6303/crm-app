@@ -21,6 +21,9 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     phone: call.phone || "",
     category: call.category || "",
     location: call.location || "",
+    // ADDED: city + experience (also populated by the Excel import)
+    city: call.city || "",
+    experience: call.experience || "",
     remarks: call.remarks || "",
   });
   const [error, setError] = useState("");
@@ -71,8 +74,16 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
             </select>
           </div>
           <div>
+            <label>City</label>
+            <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+          </div>
+          <div>
             <label>Location</label>
             <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location / area" />
+          </div>
+          <div>
+            <label>Experience</label>
+            <input value={form.experience} onChange={(e) => set("experience", e.target.value)} placeholder="e.g. 3 years" />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Remarks</label>

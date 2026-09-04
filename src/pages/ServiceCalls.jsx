@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
 import ServiceCallModal, { SERVICE_CATEGORIES } from "../components/ServiceCallModal.jsx";
+// ADDED: Excel/CSV import modal for service calls
+import ServiceCallImportModal from "../components/ServiceCallImportModal.jsx";
 
 // ADDED: WhatsApp helpers (same pattern as the Leads page).
 // Builds a wa.me link that opens WhatsApp (mobile app on phones, WhatsApp Web /
@@ -52,6 +54,8 @@ export default function ServiceCalls() {
   const [page, setPage] = useState(1);
   const limit = 50;
   const [modalCall, setModalCall] = useState(null);
+  // ADDED: controls the Excel/CSV import modal
+  const [showImport, setShowImport] = useState(false);
   const [msg, setMsg] = useState({ type: "", text: "" });
 
   const load = useCallback(() => {
@@ -92,7 +96,14 @@ export default function ServiceCalls() {
           <h1 className="page-title">🛠️ Service Calls</h1>
           <p className="page-sub">Track and manage customer service calls ({total} total)</p>
         </div>
-        <button className="btn" onClick={() => setModalCall({})}>+ Add service call</button>
+        {/* ADDED: Import Excel button (admin only) - opens the import modal.
+            Sits next to the existing "+ Add service call" button. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {isAdmin && (
+            <button className="btn secondary" onClick={() => setShowImport(true)}>⬆️ Import Excel</button>
+          )}
+          <button className="btn" onClick={() => setModalCall({})}>+ Add service call</button>
+        </div>
       </div>
 
       {msg.text && <div className={msg.type === "error" ? "error-msg" : "success-msg"}>{msg.text}</div>}
@@ -118,7 +129,10 @@ export default function ServiceCalls() {
                 <th>Name</th>
                 <th>Phone number</th>
                 <th>Category</th>
+                {/* ADDED: City + Experience columns (populated by the Excel import) */}
+                <th>City</th>
                 <th>Location</th>
+                <th>Experience</th>
                 <th>Remarks</th>
                 <th>Added by</th>
                 <th>Date</th>
@@ -127,14 +141,17 @@ export default function ServiceCalls() {
             </thead>
             <tbody>
               {calls.length === 0 && (
-                <tr><td colSpan={8} className="empty">No service calls yet. Click "+ Add service call" to create one.</td></tr>
+                <tr><td colSpan={10} className="empty">No service calls yet. Click "+ Add service call" to create one.</td></tr>
               )}
               {calls.map((c) => (
                 <tr key={c.id}>
                   <td>{c.name}</td>
                   <td>{c.phone}</td>
                   <td>{c.category || "-"}</td>
+                  {/* ADDED: City + Experience cells */}
+                  <td>{c.city || "-"}</td>
                   <td>{c.location || "-"}</td>
+                  <td>{c.experience || "-"}</td>
                   <td>{c.remarks || "-"}</td>
                   <td>{c.created_by_name || "-"}</td>
                   <td>{fmt(c.created_at)}</td>
@@ -175,6 +192,19 @@ export default function ServiceCalls() {
           onSaved={() => {
             setModalCall(null);
             flash("success", modalCall.id ? "Service call updated" : "Service call added");
+            load();
+          }}
+        />
+      )}
+
+      {/* ADDED: Excel/CSV import modal */}
+      {showImport && (
+        <ServiceCallImportModal
+          onClose={() => setShowImport(false)}
+          onImported={(data) => {
+            setShowImport(false);
+            flash("success", (data && data.message) || "Service calls imported");
+            setPage(1);
             load();
           }}
         />
