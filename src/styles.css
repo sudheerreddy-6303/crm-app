@@ -83,6 +83,8 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .kpi.k-red .value { color: var(--red-ink); }
 .kpi.k-blue .value { color: var(--blue-ink); }
 .kpi.k-amber .value { color: var(--peach-ink); }
+/* ADDED: highlighted card = category currently filtered on the Service Calls page */
+.kpi.kpi-active { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset, var(--shadow); }
 
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);

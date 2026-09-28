@@ -57,6 +57,9 @@ export default function ServiceCalls() {
   // ADDED: controls the Excel/CSV import modal
   const [showImport, setShowImport] = useState(false);
   const [msg, setMsg] = useState({ type: "", text: "" });
+  // ADDED: category count cards (e.g. how many Interior Designers, Electricians...)
+  const [stats, setStats] = useState({ total: 0, categories: [] });
+  const [showAllCats, setShowAllCats] = useState(false);
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ page, limit });
@@ -69,6 +72,21 @@ export default function ServiceCalls() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ADDED: load per-category counts for the cards (whole table, not paginated)
+  const loadStats = useCallback(() => {
+    api("/service-calls/stats")
+      .then((d) => setStats(d))
+      .catch(() => {}); // cards are optional - don't block the page if this fails
+  }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  // ADDED: clicking a card filters the table by that category (click again to clear)
+  const pickCategory = (cat) => {
+    setPage(1);
+    setFilters({ ...filters, category: filters.category === cat ? "" : cat });
+  };
+
   const flash = (type, text) => {
     setMsg({ type, text });
     setTimeout(() => setMsg({ type: "", text: "" }), 3000);
@@ -80,12 +98,19 @@ export default function ServiceCalls() {
       await api(`/service-calls/${c.id}`, { method: "DELETE" });
       flash("success", "Service call deleted");
       load();
+      loadStats(); // ADDED: refresh category cards
     } catch (e) {
       flash("error", e.message);
     }
   };
 
   const pages = Math.max(1, Math.ceil(total / limit));
+
+  // ADDED: cards sorted by count (highest first); empty categories hidden
+  // unless "Show all categories" is clicked
+  const sortedCats = [...stats.categories].sort((a, b) => b.count - a.count);
+  const visibleCats = showAllCats ? sortedCats : sortedCats.filter((c) => c.count > 0);
+  const hiddenCount = sortedCats.length - sortedCats.filter((c) => c.count > 0).length;
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
 
   return (
@@ -107,6 +132,41 @@ export default function ServiceCalls() {
       </div>
 
       {msg.text && <div className={msg.type === "error" ? "error-msg" : "success-msg"}>{msg.text}</div>}
+
+      {/* ADDED: category count cards - click a card to filter the table */}
+      <div className="kpi-grid" style={{ marginBottom: 12 }}>
+        <div
+          className={`kpi clickable k-green${filters.category === "" ? " kpi-active" : ""}`}
+          onClick={() => { setPage(1); setFilters({ ...filters, category: "" }); }}
+          title="Show all categories"
+        >
+          <div className="label">All service calls</div>
+          <div className="value">{stats.total}</div>
+        </div>
+        {visibleCats.map((c) => {
+          // "Uncategorized" = rows with a blank category; it can't be used as a filter
+          const canFilter = c.category !== "Uncategorized";
+          return (
+            <div
+              key={c.category}
+              className={`kpi${canFilter ? " clickable" : ""}${filters.category === c.category ? " kpi-active" : ""}`}
+              onClick={canFilter ? () => pickCategory(c.category) : undefined}
+              title={canFilter ? `Show only ${c.category}` : "Service calls without a category"}
+              style={c.count === 0 ? { opacity: 0.6 } : undefined}
+            >
+              <div className="label">{c.category}</div>
+              <div className="value">{c.count}</div>
+            </div>
+          );
+        })}
+      </div>
+      {hiddenCount > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <button className="btn small secondary" onClick={() => setShowAllCats(!showAllCats)}>
+            {showAllCats ? "Hide empty categories" : `Show all categories (+${hiddenCount} with 0)`}
+          </button>
+        </div>
+      )}
 
       <div className="filters">
         <input
@@ -193,6 +253,7 @@ export default function ServiceCalls() {
             setModalCall(null);
             flash("success", modalCall.id ? "Service call updated" : "Service call added");
             load();
+            loadStats(); // ADDED: refresh category cards
           }}
         />
       )}
@@ -206,6 +267,7 @@ export default function ServiceCalls() {
             flash("success", (data && data.message) || "Service calls imported");
             setPage(1);
             load();
+            loadStats(); // ADDED: refresh category cards
           }}
         />
       )}
