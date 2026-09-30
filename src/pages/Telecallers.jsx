@@ -144,8 +144,13 @@ function UserModal({ user, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    // ORIGINAL: <div className="modal-overlay" onClick={onClose}>
+    // UPDATED: clicking the empty space outside the form no longer closes it
+    // (so typed data isn't lost by accident). Close with Cancel or after Save.
+    <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        {/* ADDED: "X" close button (top-right) - closes the form without saving */}
+        <button type="button" className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
         <h3>{isNew ? "Add telecaller" : `Edit — ${user.name}`}</h3>
         {error && <div className="error-msg">{error}</div>}
         <div className="form-col">

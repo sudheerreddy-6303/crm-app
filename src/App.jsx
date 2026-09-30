@@ -39,7 +39,7 @@ function Shell({ children }) {
         </div>
         <nav>
           <NavLink to="/dashboard">📊 Dashboard</NavLink>
-          <NavLink to="/leads">📋 Leads</NavLink>
+          <NavLink to="/leads">📋 Data</NavLink>
           {/* ADDED: Service Calls button in the left sidebar */}
           <NavLink to="/service-calls">🛠️ Service Calls</NavLink>
           {/* ADDED: Walk-ins button in the left sidebar */}

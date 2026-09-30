@@ -152,8 +152,13 @@ export default function ServiceCallImportModal({ onClose, onImported }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    // ORIGINAL: <div className="modal-overlay" onClick={onClose}>
+    // UPDATED: clicking the empty space outside the form no longer closes it
+    // (so typed data isn't lost by accident). Close with Cancel or after Save.
+    <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 760, width: "94%" }}>
+        {/* ADDED: "X" close button (top-right) - closes the form without saving */}
+        <button type="button" className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
         <h3>Import service calls from Excel</h3>
         <p className="page-sub">
           Upload an Excel file (.xlsx / .xls) or a CSV export. Recognised columns:{" "}

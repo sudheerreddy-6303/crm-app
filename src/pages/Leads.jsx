@@ -68,6 +68,8 @@ export default function Leads() {
     // ADDED: project filter, initialised from the URL so a project-filtered
     // dashboard card opens the leads already scoped to that project.
     project: searchParams.get("project") || "",
+    // ADDED: stage=leads comes from the dashboard "Leads" card
+    stage: searchParams.get("stage") || "",
   });
   // ADDED: project names for the filter dropdown
   const [projects, setProjects] = useState([]);
@@ -188,6 +190,13 @@ export default function Leads() {
             <option value="unassigned">Unassigned</option>
             {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+        )}
+        {/* ADDED: shown when opened from the dashboard "Leads" card; click to remove */}
+        {filters.stage === "leads" && (
+          <button className="btn small secondary" title="Remove this filter"
+                  onClick={() => { setPage(1); setFilters({ ...filters, stage: "" }); }}>
+            Leads only (warm/cold, interested, quote sent) ✕
+          </button>
         )}
         {isAdmin && <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>}
       </div>

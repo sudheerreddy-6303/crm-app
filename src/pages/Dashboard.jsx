@@ -45,14 +45,16 @@ export default function Dashboard() {
 
   /* ORIGINAL CODE (static cards, auto-fill grid, not clickable):
   <div className="kpi-grid">
-    <div className="kpi"><div className="label">Total leads</div><div className="value">{t.total_leads || 0}</div></div>
+    <div className="kpi"><div className="label">Total database</div><div className="value">{t.total_leads || 0}</div></div>
     <div className="kpi k-green"><div className="label">Interested</div><div className="value">{t.interested || 0}</div></div>
     ... (all cards, unchanged data, moved into the CARDS array below)
   </div>
   REPLACED WITH: Bootstrap grid (5 per row on desktop, 3 on tablet, 2 on mobile),
   bigger cards, each clickable - opens the Leads page filtered to that content. */
   const CARDS = [
-    { label: "Total leads", value: t.total_leads, cls: "", link: "/leads" },
+    { label: "Total database", value: t.total_leads, cls: "", link: "/leads" },
+    // ADDED: Leads = priority warm/cold OR interested OR quotation sent Yes
+    { label: "Leads", value: t.leads, cls: "k-green", link: "/leads?stage=leads" },
     { label: "Interested", value: t.interested, cls: "k-green", link: "/leads?category=INTERESTED" },
     { label: "Follow up", value: t.follow_up, cls: "k-blue", link: "/leads?category=FOLLOW UP" },
     { label: "Not interested", value: t.not_interested, cls: "k-red", link: "/leads?category=NOT INTERESTED" },
