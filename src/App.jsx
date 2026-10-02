@@ -15,6 +15,8 @@ import Walkins from "./pages/Walkins.jsx";
 import ProjectDetails from "./pages/ProjectDetails.jsx";
 // ADDED: Project cards page - opened from the dashboard "Total projects" card
 import ProjectCards from "./pages/ProjectCards.jsx";
+// ADDED: Business Associates & Franchise page for the new sidebar button
+import BusinessPartners from "./pages/BusinessPartners.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -46,6 +48,8 @@ function Shell({ children }) {
           <NavLink to="/walkins">🚶 Walk-ins</NavLink>
           {/* ADDED: Project Details button in the left sidebar */}
           <NavLink to="/project-details">🏗️ Project Details</NavLink>
+          {/* ADDED: Business Associates & Franchise button in the left sidebar */}
+          <NavLink to="/business-partners">🤝 Business Associates &amp; Franchise</NavLink>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
           {user?.role === "admin" && <NavLink to="/import">⬆️ Import</NavLink>}
         </nav>
@@ -86,6 +90,8 @@ export default function App() {
       <Route path="/project-details" element={<Protected><ProjectDetails /></Protected>} />
       {/* ADDED: route for the project cards grid (from the dashboard "Total projects" card) */}
       <Route path="/project-cards" element={<Protected><ProjectCards /></Protected>} />
+      {/* ADDED: route for the Business Associates & Franchise sidebar button */}
+      <Route path="/business-partners" element={<Protected><BusinessPartners /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

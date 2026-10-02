@@ -176,12 +176,16 @@ export default function TelecallerDetail() {
               <tr>
                 <th>Name</th><th>Phone</th><th>1st call</th><th>Category</th>
                 <th>Quote</th><th>Order</th><th>2nd call</th><th>WA date</th>
-                <th>WA category</th><th>Remark</th><th>Next call</th><th>Last updated</th>
+                <th>WA category</th><th>Remark</th>
+                {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
+                <th>Call 1 remark</th><th>Call 2 remark</th><th>Call 3 remark</th>
+                <th>WhatsApp 1</th><th>WhatsApp 2</th><th>WhatsApp 3</th>
+                <th>Next call</th><th>Last updated</th>
               </tr>
             </thead>
             <tbody>
               {leads.length === 0 && (
-                <tr><td colSpan="12" className="empty">No leads assigned yet. Assign from the Leads page.</td></tr>
+                <tr><td colSpan="18" className="empty">No leads assigned yet. Assign from the Leads page.</td></tr>
               )}
               {leads.map((l) => (
                 <tr key={l.id}>
@@ -197,6 +201,15 @@ export default function TelecallerDetail() {
                   <td>{fmt(l.whatsapp_sent_date)}</td>
                   <td>{l.whatsapp_category || "-"}</td>
                   <td className="remark">{l.calling_remark || "-"}</td>
+                  {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
+                  <td className="remark">{l.call_remark_1 || "-"}</td>
+                  <td className="remark">{l.call_remark_2 || "-"}</td>
+                  <td className="remark">{l.call_remark_3 || "-"}</td>
+                  {[1, 2, 3].map((n) => (
+                    <td key={`wa${n}`}>{l[`whatsapp_sent_${n}`]
+                      ? <span className={`chip ${l[`whatsapp_sent_${n}`].toLowerCase()}`}>{l[`whatsapp_sent_${n}`]}</span>
+                      : "-"}</td>
+                  ))}
                   <td>{fmt(l.next_call_date)}</td>
                   <td>{fmt(l.updated_at)}</td>
                 </tr>

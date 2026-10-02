@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, getUser } from "../api.js";
 import LeadModal from "../components/LeadModal.jsx";
+// ADDED: same Walk-in form as the Walk-ins page, for the walk-in leads table
+import WalkinModal from "../components/WalkinModal.jsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 
@@ -97,6 +99,30 @@ export default function Leads() {
       api("/users").then((rows) => setTelecallers(rows.filter((r) => r.role === "telecaller"))).catch(() => {});
     }
   }, [isAdmin]);
+
+  // ADDED: walk-ins shown (read-only) under the leads when the page is opened
+  // from the dashboard "Leads" card (stage=leads). Admin only, same as the
+  // Walk-ins card. Respects the project filter.
+  const [walkinLeads, setWalkinLeads] = useState([]);
+  // ADDED: Edit / Delete for walk-ins here, same as the Walk-ins page
+  const [modalWalkin, setModalWalkin] = useState(null);
+  const loadWalkinLeads = useCallback(() => {
+    if (!isAdmin || filters.stage !== "leads") { setWalkinLeads([]); return; }
+    const q = filters.project ? `?project=${encodeURIComponent(filters.project)}` : "";
+    api(`/dashboard/walkin-leads${q}`).then((d) => setWalkinLeads(d.walkins || [])).catch(() => setWalkinLeads([]));
+  }, [isAdmin, filters.stage, filters.project]);
+  useEffect(() => { loadWalkinLeads(); }, [loadWalkinLeads]);
+  const removeWalkin = async (w) => {
+    if (!window.confirm(`Delete walk-in for "${w.name}"?`)) return;
+    try {
+      await api(`/walkins/${w.id}`, { method: "DELETE" });
+      setMsg({ type: "success", text: "Walk-in deleted" });
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+      loadWalkinLeads();
+    } catch (e) {
+      setMsg({ type: "error", text: e.message });
+    }
+  };
 
   // ADDED: load project names (admin: all; telecaller: only their own leads' projects)
   useEffect(() => {
@@ -198,7 +224,9 @@ export default function Leads() {
             Leads only (warm/cold, interested, quote sent) ✕
           </button>
         )}
-        {isAdmin && <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>}
+        {/* ORIGINAL: {isAdmin && <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>}
+            UPDATED: telecallers can also add a single lead (auto-assigned to them) */}
+        <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>
       </div>
 
       {isAdmin && (
@@ -237,13 +265,21 @@ export default function Leads() {
                 <th>WhatsApp sent</th>
                 <th>WA category</th>
                 <th>Calling remark</th>
+                {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
+                <th>Call 1 remark</th>
+                <th>Call 2 remark</th>
+                <th>Call 3 remark</th>
+                <th>WhatsApp 1</th>
+                <th>WhatsApp 2</th>
+                <th>WhatsApp 3</th>
                 <th>Next call</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {leads.length === 0 && (
-                <tr><td colSpan="15" className="empty">No leads found.</td></tr>
+                // ORIGINAL: colSpan="15" - widened for the 6 new columns
+                <tr><td colSpan="21" className="empty">No leads found.</td></tr>
               )}
               {leads.map((l) => (
                 <tr key={l.id}>
@@ -297,6 +333,22 @@ export default function Leads() {
                   <td>{fmt(l.whatsapp_sent_date) || "-"}</td>
                   <td>{l.whatsapp_category || "-"}</td>
                   <td className="remark">{l.calling_remark || "-"}</td>
+                  {/* ADDED: 3 call remarks (edit via the Edit button) */}
+                  <td className="remark">{l.call_remark_1 || "-"}</td>
+                  <td className="remark">{l.call_remark_2 || "-"}</td>
+                  <td className="remark">{l.call_remark_3 || "-"}</td>
+                  {/* ADDED: 3 WhatsApp sent Yes/No - change directly from the table */}
+                  {[1, 2, 3].map((n) => (
+                    <td key={`wa${n}`}>
+                      <select
+                        className="inline"
+                        value={l[`whatsapp_sent_${n}`] || ""}
+                        onChange={(e) => inlineUpdate(l.id, `whatsapp_sent_${n}`, e.target.value)}
+                      >
+                        <option value="">—</option><option>Yes</option><option>No</option>
+                      </select>
+                    </td>
+                  ))}
                   <td>{fmt(l.next_call_date) || "-"}</td>
                   <td>
                     <div className="row-actions">
@@ -324,6 +376,92 @@ export default function Leads() {
         <span>Page {page} of {pages}</span>
         <button className="btn small secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</button>
       </div>
+
+      {/* ADDED: walk-ins counted in the dashboard "Leads" card - read-only list.
+          Edit walk-ins from the Walk-ins page as before. */}
+      {isAdmin && filters.stage === "leads" && (
+        <div className="card" style={{ padding: 0, marginTop: 16 }}>
+          <div style={{ padding: "14px 16px 0" }}>
+            <h3>Walk-in leads ({walkinLeads.length})</h3>
+          </div>
+          {/* UPDATED: same columns and layout as the Walk-ins page */}
+          <div className="table-wrap sticky-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone number</th>
+                  <th>Alt. mobile</th>
+                  <th>Project / villa</th>
+                  <th>Visit date</th>
+                  <th>Purpose</th>
+                  <th>Experience centre</th>
+                  <th>Location</th>
+                  <th>City</th>
+                  <th>Address</th>
+                  <th>Budget</th>
+                  <th>Attended by</th>
+                  <th>Remarks</th>
+                  <th>Added by</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {walkinLeads.length === 0 && (
+                  <tr><td colSpan={15} className="empty">No walk-ins found.</td></tr>
+                )}
+                {walkinLeads.map((w) => (
+                  <tr key={`w${w.id}`}>
+                    <td>{w.name}</td>
+                    <td>
+                      <a
+                        className="wa-link"
+                        href={`https://wa.me/${waNumber(w.phone)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open WhatsApp chat"
+                      >
+                        {w.phone}
+                      </a>
+                    </td>
+                    <td>
+                      {w.alt_phone ? (
+                        <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
+                          {w.alt_phone}
+                        </a>
+                      ) : "-"}
+                    </td>
+                    <td>{w.project_name || "-"}</td>
+                    <td>{fmt(w.visit_date) || "-"}</td>
+                    <td>{w.purpose || "-"}</td>
+                    <td>{w.location || "-"}</td>
+                    <td>{w.site_location || "-"}</td>
+                    <td>{w.city || "-"}</td>
+                    <td className="remark">{w.address || "-"}</td>
+                    <td>{w.budget || "-"}</td>
+                    <td>{w.attended_by || "-"}</td>
+                    <td className="remark">{w.remarks || "-"}</td>
+                    <td>{w.created_by_name || "-"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button className="btn small secondary" onClick={() => setModalWalkin(w)}>Edit</button>
+                      <button className="btn small danger" style={{ marginLeft: 6 }} onClick={() => removeWalkin(w)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ADDED: same Walk-in edit form as the Walk-ins page */}
+      {modalWalkin && (
+        <WalkinModal
+          walkin={modalWalkin}
+          onClose={() => setModalWalkin(null)}
+          onSaved={() => { setModalWalkin(null); loadWalkinLeads(); }}
+        />
+      )}
 
       {modalLead !== null && (
         <LeadModal

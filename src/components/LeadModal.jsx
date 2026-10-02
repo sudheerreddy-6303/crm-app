@@ -23,7 +23,17 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     next_call_date: fmt(lead.next_call_date),
     priority: lead.priority || "none",
     source: lead.source || "",
+    // ADDED: 3 call remarks + 3 WhatsApp sent Yes/No
+    call_remark_1: lead.call_remark_1 || "",
+    call_remark_2: lead.call_remark_2 || "",
+    call_remark_3: lead.call_remark_3 || "",
+    whatsapp_sent_1: lead.whatsapp_sent_1 || "",
+    whatsapp_sent_2: lead.whatsapp_sent_2 || "",
+    whatsapp_sent_3: lead.whatsapp_sent_3 || "",
   });
+  // ADDED: telecallers can fill name / project / phone when ADDING a new lead
+  // (still locked for them when editing an existing lead, as before)
+  const canEditBasics = isAdmin || isNew;
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -68,18 +78,20 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
         {error && <div className="error-msg">{error}</div>}
 
         <div className="form-grid">
+          {/* ORIGINAL: label "(admin only)" + disabled={!isAdmin}
+              UPDATED: telecallers can type these when adding a new lead */}
           <div>
-            <label>Name {isAdmin ? "" : "(admin only)"}</label>
-            <input value={form.name} onChange={(e) => set("name", e.target.value)} disabled={!isAdmin} />
+            <label>Name {canEditBasics ? "" : "(admin only)"}</label>
+            <input value={form.name} onChange={(e) => set("name", e.target.value)} disabled={!canEditBasics} />
           </div>
           {/* ADDED: Project Name field (mandatory during Excel import) */}
           <div>
-            <label>Project name {isAdmin ? "" : "(admin only)"}</label>
-            <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} disabled={!isAdmin} />
+            <label>Project name {canEditBasics ? "" : "(admin only)"}</label>
+            <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} disabled={!canEditBasics} />
           </div>
           <div>
             <label>Primary phone</label>
-            <input value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} disabled={!isAdmin} />
+            <input value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} disabled={!canEditBasics} />
           </div>
           {isAdmin && (
             <div>
@@ -156,6 +168,28 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
             onChange={(e) => set("calling_remark", e.target.value)}
             placeholder="e.g. she wants designs (guntur 4bhk) (sent)"
           />
+        </div>
+
+        {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
+        <div className="form-grid" style={{ marginTop: 14 }}>
+          {[1, 2, 3].map((n) => (
+            <div key={`cr${n}`}>
+              <label>Call {n} remark</label>
+              <input
+                value={form[`call_remark_${n}`]}
+                onChange={(e) => set(`call_remark_${n}`, e.target.value)}
+                placeholder={`Remark for call ${n}`}
+              />
+            </div>
+          ))}
+          {[1, 2, 3].map((n) => (
+            <div key={`wa${n}`}>
+              <label>WhatsApp {n} sent</label>
+              <select value={form[`whatsapp_sent_${n}`]} onChange={(e) => set(`whatsapp_sent_${n}`, e.target.value)}>
+                <option value="">—</option><option>Yes</option><option>No</option>
+              </select>
+            </div>
+          ))}
         </div>
 
         {!isNew && logs.length > 0 && (
