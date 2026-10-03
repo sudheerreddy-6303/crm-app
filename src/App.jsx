@@ -1,5 +1,8 @@
-import React from "react";
-import { Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+// ORIGINAL: import React from "react";
+// ORIGINAL: import { Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+// UPDATED: useState / useEffect / useLocation added for the mobile menu button
+import React, { useState, useEffect } from "react";
+import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { getUser, clearSession } from "./api.js";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -27,9 +30,27 @@ function Shell({ children }) {
     navigate("/login");
   };
 
+  // ADDED: mobile menu. On phones the sidebar becomes a slim top bar with a
+  // "Menu" button; the links open/close below it. Desktop is unchanged
+  // (the button is hidden there by CSS). The menu closes after opening a page.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {/* ORIGINAL: <aside className="sidebar"> */}
+      <aside className={`sidebar${menuOpen ? " menu-open" : ""}`}>
+        {/* ADDED: menu button - only visible on mobile */}
+        <button
+          type="button"
+          className="menu-toggle"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+        >
+          {menuOpen ? "✕ Close" : "☰ Menu"}
+        </button>
         <div className="logo">
           {/* ADDED: Deeraj Interiors logo above the TeleCRM wordmark */}
           <img
