@@ -54,6 +54,8 @@ export default function BusinessPartners() {
   };
 
   const pages = Math.max(1, Math.ceil(total / limit));
+  // ADDED: date display helper (YYYY-MM-DD)
+  const fmt = (d) => (d ? String(d).slice(0, 10) : "");
   const waLink = (num) =>
     num ? (
       <a className="wa-link" href={`https://wa.me/${waNumber(num)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
@@ -98,6 +100,12 @@ export default function BusinessPartners() {
                 <th>Location</th>
                 <th>WhatsApp</th>
                 <th>Category</th>
+                {/* ADDED: calling date + WhatsApp sent date */}
+                {/* UPDATED headers: Call 1 / Call 2 dates, WhatsApp 1 / WhatsApp 2 dates */}
+                <th>Call 1 date</th>
+                <th>Call 2 date</th>
+                <th>WhatsApp 1 date</th>
+                <th>WhatsApp 2 date</th>
                 <th>Call 1 remark</th>
                 <th>Call 2 remark</th>
                 <th>Added by</th>
@@ -106,7 +114,7 @@ export default function BusinessPartners() {
             </thead>
             <tbody>
               {partners.length === 0 && (
-                <tr><td colSpan={10} className="empty">No records yet. Click "+ Add" to create one.</td></tr>
+                <tr><td colSpan={14} className="empty">No records yet. Click "+ Add" to create one.</td></tr>
               )}
               {partners.map((p) => (
                 <tr key={p.id}>
@@ -116,6 +124,13 @@ export default function BusinessPartners() {
                   <td>{p.location || "-"}</td>
                   <td>{waLink(p.whatsapp)}</td>
                   <td>{p.category || "-"}</td>
+                  {/* ADDED: calling date + WhatsApp sent date */}
+                  <td>{fmt(p.calling_date) || "-"}</td>
+                  {/* ADDED: 2nd call date */}
+                  <td>{fmt(p.calling_date_2) || "-"}</td>
+                  <td>{fmt(p.whatsapp_sent_date) || "-"}</td>
+                  {/* ADDED: 2nd WhatsApp sent date */}
+                  <td>{fmt(p.whatsapp_sent_date_2) || "-"}</td>
                   <td className="remark">{p.call_remark_1 || "-"}</td>
                   <td className="remark">{p.call_remark_2 || "-"}</td>
                   <td>{p.created_by_name || "-"}</td>

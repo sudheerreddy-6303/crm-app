@@ -20,6 +20,12 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
     call_remark_1: partner.call_remark_1 || "",
     call_remark_2: partner.call_remark_2 || "",
     category: partner.category || "",
+    // ADDED: calling date + WhatsApp sent date (date input needs YYYY-MM-DD)
+    calling_date: partner.calling_date ? String(partner.calling_date).slice(0, 10) : "",
+    whatsapp_sent_date: partner.whatsapp_sent_date ? String(partner.whatsapp_sent_date).slice(0, 10) : "",
+    // ADDED: 2nd call date + 2nd WhatsApp sent date
+    calling_date_2: partner.calling_date_2 ? String(partner.calling_date_2).slice(0, 10) : "",
+    whatsapp_sent_date_2: partner.whatsapp_sent_date_2 ? String(partner.whatsapp_sent_date_2).slice(0, 10) : "",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -82,6 +88,27 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
               <option value="">Select category</option>
               {PARTNER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+          </div>
+          {/* ADDED: calling date + WhatsApp sent date
+              UPDATED labels: "Calling date" -> "Call 1 date",
+              "WhatsApp sent date" -> "WhatsApp 1 sent date" (same saved data) */}
+          <div>
+            <label>Call 1 date</label>
+            <input type="date" value={form.calling_date} onChange={(e) => set("calling_date", e.target.value)} />
+          </div>
+          {/* ADDED: 2nd call date */}
+          <div>
+            <label>Call 2 date</label>
+            <input type="date" value={form.calling_date_2} onChange={(e) => set("calling_date_2", e.target.value)} />
+          </div>
+          <div>
+            <label>WhatsApp 1 sent date</label>
+            <input type="date" value={form.whatsapp_sent_date} onChange={(e) => set("whatsapp_sent_date", e.target.value)} />
+          </div>
+          {/* ADDED: 2nd WhatsApp sent date */}
+          <div>
+            <label>WhatsApp 2 sent date</label>
+            <input type="date" value={form.whatsapp_sent_date_2} onChange={(e) => set("whatsapp_sent_date_2", e.target.value)} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Call 1 remark</label>
