@@ -179,7 +179,8 @@ export default function TelecallerDetail() {
                 <th>WA category</th><th>Remark</th>
                 {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
                 <th>Call 1 remark</th><th>Call 2 remark</th><th>Call 3 remark</th>
-                <th>WhatsApp 1</th><th>WhatsApp 2</th><th>WhatsApp 3</th>
+                {/* UPDATED: WhatsApp 1/2/3 sent dates (was Yes/No) */}
+                <th>WhatsApp 1 date</th><th>WhatsApp 2 date</th><th>WhatsApp 3 date</th>
                 <th>Next call</th><th>Last updated</th>
               </tr>
             </thead>
@@ -206,9 +207,8 @@ export default function TelecallerDetail() {
                   <td className="remark">{l.call_remark_2 || "-"}</td>
                   <td className="remark">{l.call_remark_3 || "-"}</td>
                   {[1, 2, 3].map((n) => (
-                    <td key={`wa${n}`}>{l[`whatsapp_sent_${n}`]
-                      ? <span className={`chip ${l[`whatsapp_sent_${n}`].toLowerCase()}`}>{l[`whatsapp_sent_${n}`]}</span>
-                      : "-"}</td>
+                    // ORIGINAL: Yes / No chip from whatsapp_sent_N - UPDATED: sent date
+                    <td key={`wa${n}`}>{fmt(l[`whatsapp_date_${n}`]) || "-"}</td>
                   ))}
                   <td>{fmt(l.next_call_date)}</td>
                   <td>{fmt(l.updated_at)}</td>

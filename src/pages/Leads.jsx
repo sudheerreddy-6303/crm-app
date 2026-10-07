@@ -4,6 +4,8 @@ import { api, getUser } from "../api.js";
 import LeadModal from "../components/LeadModal.jsx";
 // ADDED: same Walk-in form as the Walk-ins page, for the walk-in leads table
 import WalkinModal from "../components/WalkinModal.jsx";
+// ADDED: "Convert to lead" pop-up for the walk-in table
+import ConvertWalkinModal from "../components/ConvertWalkinModal.jsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 
@@ -79,6 +81,9 @@ export default function Leads() {
   const [assignTo, setAssignTo] = useState("");
   const [modalLead, setModalLead] = useState(null); // null closed, {} new, {..} edit
   const [msg, setMsg] = useState({ type: "", text: "" });
+  // ADDED: card view for the dashboard "Leads" card (stage=leads). Cards are the
+  // default there; the Cards / Table switch shows the original tables again.
+  const [viewMode, setViewMode] = useState("cards");
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +111,8 @@ export default function Leads() {
   const [walkinLeads, setWalkinLeads] = useState([]);
   // ADDED: Edit / Delete for walk-ins here, same as the Walk-ins page
   const [modalWalkin, setModalWalkin] = useState(null);
+  // ADDED: walk-in being converted to a lead
+  const [convertWalkin, setConvertWalkin] = useState(null);
   const loadWalkinLeads = useCallback(() => {
     if (!isAdmin || filters.stage !== "leads") { setWalkinLeads([]); return; }
     const q = filters.project ? `?project=${encodeURIComponent(filters.project)}` : "";
@@ -175,6 +182,14 @@ export default function Leads() {
 
   const pages = Math.max(1, Math.ceil(total / limit));
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
+  // ADDED: true when the card view is showing (only in the "Leads" card view)
+  // ORIGINAL: const showCards = filters.stage === "leads" && viewMode === "cards";
+  // UPDATED: cards also for the dashboard "Follow up" card (opened with
+  // ?category=FOLLOW UP). If the category filter is changed on the page, the
+  // normal table comes back.
+  const fromFollowUpCard = searchParams.get("category") === "FOLLOW UP";
+  const cardsAllowed = filters.stage === "leads" || (fromFollowUpCard && filters.category === "FOLLOW UP");
+  const showCards = cardsAllowed && viewMode === "cards";
 
   return (
     <div>
@@ -221,8 +236,17 @@ export default function Leads() {
         {filters.stage === "leads" && (
           <button className="btn small secondary" title="Remove this filter"
                   onClick={() => { setPage(1); setFilters({ ...filters, stage: "" }); }}>
-            Leads only (warm/cold, interested, quote sent) ✕
+            {/* UPDATED label: walk-in = Yes leads are included too */}
+            Leads only (warm/cold, interested, quote sent, walk-in) ✕
           </button>
+        )}
+        {/* ADDED: Cards / Table switch for the "Leads" card view */}
+        {/* ORIGINAL: {filters.stage === "leads" && ( - UPDATED: also for Follow up */}
+        {cardsAllowed && (
+          <div className="view-toggle" role="group" aria-label="View">
+            <button className={`btn small ${viewMode === "cards" ? "" : "secondary"}`} onClick={() => setViewMode("cards")}>▦ Cards</button>
+            <button className={`btn small ${viewMode === "table" ? "" : "secondary"}`} onClick={() => setViewMode("table")}>☰ Table</button>
+          </div>
         )}
         {/* ORIGINAL: {isAdmin && <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>}
             UPDATED: telecallers can also add a single lead (auto-assigned to them) */}
@@ -240,6 +264,67 @@ export default function Leads() {
         </div>
       )}
 
+      {/* ADDED: lead cards (shown instead of the table in the "Leads" card view) */}
+      {showCards && (
+        <div className="lead-cards">
+          {leads.length === 0 && <div className="card empty">No leads found.</div>}
+          {leads.map((l) => (
+            // UPDATED: card shows only the same details as the table columns -
+            // Name, Project, Primary phone, Caller, 1st call, Call category,
+            // Quote sent, Order booked - with WhatsApp + Edit at the bottom.
+            // Edit opens the same "Edit lead" form as the table's Edit button.
+            <div className="lead-card" key={l.id}>
+              <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}</div>
+              <div className="lc-grid">
+                <span>Project</span><b>{l.project_name || "-"}</b>
+                {/* ADDED: project type (2BHK / 3BHK / 4BHK / Villa / Commercial / Others) */}
+                <span>Project type</span><b>{l.project_type || "-"}</b>
+                <span>Primary phone</span>
+                <b>
+                  <a className="wa-link" href={`https://wa.me/${waNumber(l.primary_phone)}?text=${encodeURIComponent(waMessage(l))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
+                    {l.primary_phone}
+                  </a>
+                </b>
+                {isAdmin && (<><span>Caller</span><b>{l.caller_name || <span className="chip none">Unassigned</span>}</b></>)}
+                <span>1st call</span><b>{fmt(l.first_calling_date) || "-"}</b>
+              </div>
+              {/* same dropdowns as the table - changes save straight away */}
+              <div className="lc-selects">
+                <label>
+                  <span>Call category</span>
+                  <select className="inline" value={l.call_category || ""} onChange={(e) => inlineUpdate(l.id, "call_category", e.target.value)}>
+                    <option value="">—</option>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Quote sent</span>
+                  <select className="inline" value={l.quote_sent || ""} onChange={(e) => inlineUpdate(l.id, "quote_sent", e.target.value)}>
+                    <option value="">—</option><option>Yes</option><option>No</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Order booked</span>
+                  <select className="inline" value={l.order_booked || ""} onChange={(e) => inlineUpdate(l.id, "order_booked", e.target.value)}>
+                    <option value="">—</option><option>Yes</option><option>No</option>
+                  </select>
+                </label>
+              </div>
+              <div className="lc-actions">
+                <button className="btn small wa-btn" title="Send WhatsApp message" onClick={() => openWhatsApp(l)}>
+                  <WhatsAppIcon /><span style={{ marginLeft: 6 }}>WhatsApp</span>
+                </button>
+                <button className="btn small secondary" onClick={() => setModalLead(l)}>Edit</button>
+                {/* ADDED: Delete on the card - admin only, same as the table (asks to confirm) */}
+                {isAdmin && <button className="btn small danger" onClick={() => removeLead(l.id)}>Delete</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ORIGINAL table below - unchanged, shown normally and in "Table" view */}
+      {!showCards && (
       <div className="card" style={{ padding: 0 }}>
         {/* ORIGINAL: <div className="table-wrap"> - scrollbar was only reachable
             after scrolling past all rows. sticky-scroll keeps it always visible. */}
@@ -269,9 +354,10 @@ export default function Leads() {
                 <th>Call 1 remark</th>
                 <th>Call 2 remark</th>
                 <th>Call 3 remark</th>
-                <th>WhatsApp 1</th>
-                <th>WhatsApp 2</th>
-                <th>WhatsApp 3</th>
+                {/* UPDATED: WhatsApp 1/2/3 now show the sent DATE (was Yes/No) */}
+                <th>WhatsApp 1 date</th>
+                <th>WhatsApp 2 date</th>
+                <th>WhatsApp 3 date</th>
                 <th>Next call</th>
                 <th></th>
               </tr>
@@ -337,17 +423,10 @@ export default function Leads() {
                   <td className="remark">{l.call_remark_1 || "-"}</td>
                   <td className="remark">{l.call_remark_2 || "-"}</td>
                   <td className="remark">{l.call_remark_3 || "-"}</td>
-                  {/* ADDED: 3 WhatsApp sent Yes/No - change directly from the table */}
+                  {/* ORIGINAL: 3 WhatsApp sent Yes/No dropdowns (whatsapp_sent_N)
+                      UPDATED: show the WhatsApp sent dates - set them with Edit */}
                   {[1, 2, 3].map((n) => (
-                    <td key={`wa${n}`}>
-                      <select
-                        className="inline"
-                        value={l[`whatsapp_sent_${n}`] || ""}
-                        onChange={(e) => inlineUpdate(l.id, `whatsapp_sent_${n}`, e.target.value)}
-                      >
-                        <option value="">—</option><option>Yes</option><option>No</option>
-                      </select>
-                    </td>
+                    <td key={`wa${n}`}>{fmt(l[`whatsapp_date_${n}`]) || "-"}</td>
                   ))}
                   <td>{fmt(l.next_call_date) || "-"}</td>
                   <td>
@@ -370,6 +449,7 @@ export default function Leads() {
           </table>
         </div>
       </div>
+      )}
 
       <div className="pagination">
         <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
@@ -384,7 +464,51 @@ export default function Leads() {
           <div style={{ padding: "14px 16px 0" }}>
             <h3>Walk-in leads ({walkinLeads.length})</h3>
           </div>
-          {/* UPDATED: same columns and layout as the Walk-ins page */}
+          {/* ADDED: walk-in cards (shown instead of the table in "Cards" view) */}
+          {showCards && (
+            <div className="lead-cards" style={{ padding: 16 }}>
+              {walkinLeads.length === 0 && <div className="empty">No walk-ins found.</div>}
+              {walkinLeads.map((w) => (
+                <div className="lead-card" key={`wc${w.id}`}>
+                  <div className="lc-head">
+                    <div>
+                      <div className="lc-name">{w.name}</div>
+                      <div className="lc-sub">{w.project_name || "No project"} · Walk-in {fmt(w.visit_date)}</div>
+                    </div>
+                    {w.converted_lead_id
+                      ? <span className="chip yes">✓ Lead</span>
+                      : <span className="chip none">Walk-in</span>}
+                  </div>
+                  <a className="wa-link lc-phone" href={`https://wa.me/${waNumber(w.phone)}`} target="_blank" rel="noreferrer">{w.phone}</a>
+                  <div className="lc-grid">
+                    <span>Alt. mobile</span><b>{w.alt_phone || "-"}</b>
+                    <span>Purpose</span><b>{w.purpose || "-"}</b>
+                    <span>Budget</span><b>{w.budget || "-"}</b>
+                    <span>Experience centre</span><b>{w.location || "-"}</b>
+                    <span>Location</span><b>{[w.site_location, w.city].filter(Boolean).join(", ") || "-"}</b>
+                    <span>Attended by</span><b>{w.attended_by || "-"}</b>
+                    <span>Added by</span><b>{w.created_by_name || "-"}</b>
+                  </div>
+                  {(w.remarks || w.address) && (
+                    <div className="lc-remarks">
+                      {w.address && <div><span>Address:</span> {w.address}</div>}
+                      {w.remarks && <div><span>Remarks:</span> {w.remarks}</div>}
+                    </div>
+                  )}
+                  <div className="lc-actions">
+                    {!w.converted_lead_id && (
+                      <button className="btn small" onClick={() => setConvertWalkin(w)}>→ Convert to lead</button>
+                    )}
+                    <button className="btn small secondary" onClick={() => setModalWalkin(w)}>Edit</button>
+                    <button className="btn small danger" onClick={() => removeWalkin(w)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* UPDATED: same columns and layout as the Walk-ins page
+              (ORIGINAL table kept - shown in "Table" view) */}
+          {!showCards && (
           <div className="table-wrap sticky-scroll">
             <table>
               <thead>
@@ -443,6 +567,12 @@ export default function Leads() {
                     <td className="remark">{w.remarks || "-"}</td>
                     <td>{w.created_by_name || "-"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
+                      {/* ADDED: convert this walk-in to a lead (or show it is already a lead) */}
+                      {w.converted_lead_id ? (
+                        <span className="chip yes" style={{ marginRight: 6 }} title="Already added to Data (Leads)">✓ Lead</span>
+                      ) : (
+                        <button className="btn small" style={{ marginRight: 6 }} onClick={() => setConvertWalkin(w)}>→ Convert to lead</button>
+                      )}
                       <button className="btn small secondary" onClick={() => setModalWalkin(w)}>Edit</button>
                       <button className="btn small danger" style={{ marginLeft: 6 }} onClick={() => removeWalkin(w)}>Delete</button>
                     </td>
@@ -451,7 +581,23 @@ export default function Leads() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
+      )}
+
+      {/* ADDED: convert walk-in to lead pop-up - refreshes both lists after */}
+      {convertWalkin && (
+        <ConvertWalkinModal
+          walkin={convertWalkin}
+          onClose={() => setConvertWalkin(null)}
+          onConverted={(text) => {
+            setConvertWalkin(null);
+            setMsg({ type: "success", text });
+            setTimeout(() => setMsg({ type: "", text: "" }), 3500);
+            loadWalkinLeads();
+            load();
+          }}
+        />
       )}
 
       {/* ADDED: same Walk-in edit form as the Walk-ins page */}

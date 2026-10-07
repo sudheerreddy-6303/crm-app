@@ -20,6 +20,8 @@ import ProjectDetails from "./pages/ProjectDetails.jsx";
 import ProjectCards from "./pages/ProjectCards.jsx";
 // ADDED: Business Associates & Franchise page for the new sidebar button
 import BusinessPartners from "./pages/BusinessPartners.jsx";
+// ADDED: app-wide success / error popup (shown after every save)
+import Popup from "./components/Popup.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -96,6 +98,8 @@ function Protected({ children, adminOnly = false }) {
 
 export default function App() {
   return (
+    // UPDATED: wrapped in a fragment so the app-wide <Popup /> sits next to the routes
+    <>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
@@ -115,5 +119,8 @@ export default function App() {
       <Route path="/business-partners" element={<Protected><BusinessPartners /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    {/* ADDED: success / error popup after every save (see components/Popup.jsx) */}
+    <Popup />
+    </>
   );
 }

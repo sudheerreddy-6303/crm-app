@@ -244,6 +244,72 @@ textarea { resize: vertical; min-height: 70px; }
   .modal { padding: 16px; }
 }
 
+/* ADDED: lead / walk-in cards for the dashboard "Leads" card view */
+.view-toggle { display: inline-flex; gap: 4px; }
+.lead-cards {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.lead-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.lead-card .lc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.lead-card .lc-name { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.lead-card .lc-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.lead-card .lc-head .chip { flex-shrink: 0; white-space: nowrap; }
+.lead-card .lc-phone { font-size: 14px; }
+.lead-card .lc-grid {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px;
+}
+.lead-card .lc-grid span { color: var(--ink-soft); }
+.lead-card .lc-grid b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.lead-card .lc-remarks {
+  background: #f6f8f7; border-radius: 8px; padding: 8px 10px;
+  font-size: 12.5px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere;
+}
+.lead-card .lc-remarks span { color: var(--ink-soft); font-weight: 600; }
+.lead-card .lc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+/* ADDED: dropdowns on the lead cards (same as the table's inline dropdowns) */
+.lead-card .lc-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lead-card .lc-selects label:first-child { grid-column: 1 / -1; } /* call category: full width */
+.lead-card .lc-selects label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-soft); font-weight: 600; min-width: 0; }
+.lead-card .lc-selects select { width: 100%; min-width: 0; max-width: none; padding: 7px 8px; font-size: 12.5px; }
+.lead-card .lc-actions { border-top: 1px solid var(--line); padding-top: 10px; }
+.lead-card .lc-actions .btn { flex: 1; justify-content: center; }
+@media (max-width: 860px) {
+  .lead-cards { grid-template-columns: 1fr; }
+  .view-toggle { width: 100%; }
+  .view-toggle .btn { flex: 1; }
+}
+
+/* ADDED: app-wide success / error popup (components/Popup.jsx). Above the
+   pop-up forms (z-index 50) so it is visible right after Save. */
+.crm-popup-wrap {
+  position: fixed; inset: 0; z-index: 200; display: flex;
+  align-items: flex-start; justify-content: center; padding: 70px 16px 16px;
+  pointer-events: none;
+}
+.crm-popup {
+  pointer-events: auto; background: #fff; border-radius: 14px;
+  padding: 22px 26px 18px; width: 100%; max-width: 360px; text-align: center;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.25); border-top: 5px solid var(--brand);
+  animation: crmPopIn 0.18s ease-out;
+}
+.crm-popup.err { border-top-color: #c62828; }
+.crm-popup-icon {
+  width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 700; color: #fff; background: var(--brand);
+}
+.crm-popup.err .crm-popup-icon { background: #c62828; }
+.crm-popup-title { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
+.crm-popup-text { color: var(--ink-soft); font-size: 14px; margin-bottom: 14px; overflow-wrap: anywhere; }
+.crm-popup .btn { min-width: 90px; }
+.crm-popup.err .btn { background: #c62828; border-color: #c62828; }
+@keyframes crmPopIn { from { transform: translateY(-12px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+
 /* ADDED: mobile menu button - hidden on computers, shown on phones below */
 .menu-toggle { display: none; }
 

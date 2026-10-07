@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
 import WalkinModal, { WALKIN_PURPOSES } from "../components/WalkinModal.jsx";
+// ADDED: "Convert to lead" pop-up
+import ConvertWalkinModal from "../components/ConvertWalkinModal.jsx";
 
 // ADDED: Walk-ins page - table of all walk-in records, search + purpose filter,
 // and a top-right "+ Add walk-in" button that opens the modal. Mirrors the
@@ -24,6 +26,8 @@ export default function Walkins() {
   const [page, setPage] = useState(1);
   const limit = 50;
   const [modalWalkin, setModalWalkin] = useState(null);
+  // ADDED: walk-in being converted to a lead (null = pop-up closed)
+  const [convertWalkin, setConvertWalkin] = useState(null);
   const [msg, setMsg] = useState({ type: "", text: "" });
 
   const load = useCallback(() => {
@@ -144,6 +148,12 @@ export default function Walkins() {
                   <td className="remark">{w.remarks || "-"}</td>
                   <td>{w.created_by_name || "-"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
+                    {/* ADDED: convert this walk-in to a lead (or show it is already a lead) */}
+                    {w.converted_lead_id ? (
+                      <span className="chip yes" style={{ marginRight: 6 }} title="Already added to Data (Leads)">✓ Lead</span>
+                    ) : (
+                      <button className="btn small" style={{ marginRight: 6 }} onClick={() => setConvertWalkin(w)}>→ Convert to lead</button>
+                    )}
                     <button className="btn small secondary" onClick={() => setModalWalkin(w)}>Edit</button>
                     {isAdmin && (
                       <button className="btn small danger" style={{ marginLeft: 6 }} onClick={() => remove(w)}>Delete</button>
@@ -162,6 +172,15 @@ export default function Walkins() {
           <span style={{ fontSize: 13 }}>Page {page} of {pages}</span>
           <button className="btn small secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</button>
         </div>
+      )}
+
+      {/* ADDED: convert walk-in to lead pop-up */}
+      {convertWalkin && (
+        <ConvertWalkinModal
+          walkin={convertWalkin}
+          onClose={() => setConvertWalkin(null)}
+          onConverted={(text) => { setConvertWalkin(null); flash("success", text); load(); }}
+        />
       )}
 
       {modalWalkin && (

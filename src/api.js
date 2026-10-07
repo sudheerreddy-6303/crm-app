@@ -3,6 +3,15 @@
 // ADDED (CRA): Create React App reads env variables from process.env.REACT_APP_*
 const BASE = process.env.REACT_APP_API_URL || "";
 
+// ADDED: success / error popup after every save, update, delete, convert,
+// assign and import. Shown by components/Popup.jsx (mounted in App.jsx).
+// Not shown for: reading data (GET), logging in, and the leads Excel import
+// (that page already has its own "Import Successful!" popup).
+function firePopup(type, text) {
+  window.dispatchEvent(new CustomEvent("crm-popup", { detail: { type, text } }));
+}
+const NO_POPUP_PATHS = ["/auth/login", "/leads/import"];
+
 export function getToken() {
   return localStorage.getItem("telecrm_token");
 }
@@ -41,6 +50,19 @@ export async function api(path, options = {}) {
     window.location.href = "/login";
     throw new Error("Session expired. Please log in again.");
   }
-  if (!res.ok) throw new Error((data && data.error) || "Request failed");
+  // ORIGINAL: if (!res.ok) throw new Error((data && data.error) || "Request failed");
+  // ORIGINAL: return data;
+  // UPDATED: same behaviour, plus the popup for changes (POST / PUT / DELETE)
+  const method = String(options.method || "GET").toUpperCase();
+  const showsPopup = method !== "GET" && !NO_POPUP_PATHS.some((p) => path.startsWith(p));
+  if (!res.ok) {
+    const errText = (data && data.error) || "Request failed";
+    if (showsPopup) firePopup("error", errText);
+    throw new Error(errText);
+  }
+  if (showsPopup) {
+    const fallback = method === "DELETE" ? "Deleted successfully" : "Saved successfully";
+    firePopup("success", (data && data.message) || fallback);
+  }
   return data;
 }

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { api } from "../api.js";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
+// ADDED: project types for the new "Project type" dropdown
+const PROJECT_TYPES = ["2BHK", "3BHK", "4BHK", "Villa", "Commercial", "Others"];
 const fmt = (d) => (d ? String(d).slice(0, 10) : "");
 
 export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved }) {
@@ -10,6 +12,10 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     name: lead.name || "",
     // ADDED: project name (mandatory during Excel import, editable here by admin)
     project_name: lead.project_name || "",
+    // ADDED: project type dropdown
+    project_type: lead.project_type || "",
+    // ADDED: Walk-in Yes / No
+    walkin: lead.walkin || "",
     primary_phone: lead.primary_phone || "",
     assigned_to: lead.assigned_to || "",
     first_calling_date: fmt(lead.first_calling_date),
@@ -30,6 +36,10 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     whatsapp_sent_1: lead.whatsapp_sent_1 || "",
     whatsapp_sent_2: lead.whatsapp_sent_2 || "",
     whatsapp_sent_3: lead.whatsapp_sent_3 || "",
+    // ADDED: WhatsApp 1 / 2 / 3 sent dates (shown instead of Yes/No)
+    whatsapp_date_1: fmt(lead.whatsapp_date_1),
+    whatsapp_date_2: fmt(lead.whatsapp_date_2),
+    whatsapp_date_3: fmt(lead.whatsapp_date_3),
   });
   // ADDED: telecallers can fill name / project / phone when ADDING a new lead
   // (still locked for them when editing an existing lead, as before)
@@ -88,6 +98,21 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           <div>
             <label>Project name {canEditBasics ? "" : "(admin only)"}</label>
             <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} disabled={!canEditBasics} />
+          </div>
+          {/* ADDED: Project type dropdown */}
+          <div>
+            <label>Project type</label>
+            <select value={form.project_type} onChange={(e) => set("project_type", e.target.value)}>
+              <option value="">—</option>
+              {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {/* ADDED: Walk-in Yes / No - "Yes" shows this lead in the dashboard "Leads" card */}
+          <div>
+            <label>Walk-in</label>
+            <select value={form.walkin} onChange={(e) => set("walkin", e.target.value)}>
+              <option value="">—</option><option>Yes</option><option>No</option>
+            </select>
           </div>
           <div>
             <label>Primary phone</label>
@@ -182,12 +207,12 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
               />
             </div>
           ))}
+          {/* ORIGINAL: WhatsApp {n} sent as a Yes / No dropdown (whatsapp_sent_N)
+              UPDATED: now a date picker - the date the WhatsApp was sent */}
           {[1, 2, 3].map((n) => (
             <div key={`wa${n}`}>
-              <label>WhatsApp {n} sent</label>
-              <select value={form[`whatsapp_sent_${n}`]} onChange={(e) => set(`whatsapp_sent_${n}`, e.target.value)}>
-                <option value="">—</option><option>Yes</option><option>No</option>
-              </select>
+              <label>WhatsApp {n} sent date</label>
+              <input type="date" value={form[`whatsapp_date_${n}`]} onChange={(e) => set(`whatsapp_date_${n}`, e.target.value)} />
             </div>
           ))}
         </div>
