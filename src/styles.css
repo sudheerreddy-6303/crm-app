@@ -373,3 +373,21 @@ textarea { resize: vertical; min-height: 70px; }
   margin: 0 auto 14px auto;
   max-width: 200px;
 }
+
+/* ADDED: "View" button on the lead cards + read-only lead details pop-up */
+.lead-card .lc-view { flex: 0 0 auto; padding: 4px 12px; }
+.lv-section { border-top: 1px solid var(--line); padding: 12px 0; }
+.lv-title { font-weight: 700; font-size: 13px; color: var(--brand); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em; }
+.lv-grid { display: grid; grid-template-columns: 180px 1fr; gap: 6px 14px; font-size: 13.5px; }
+.lv-grid span { color: var(--ink-soft); }
+.lv-grid b { font-weight: 600; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lv-empty { font-size: 13px; color: var(--ink-soft); }
+.lv-logs { display: flex; flex-direction: column; gap: 8px; }
+.lv-log { background: #f6f8f7; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.lv-log-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.lv-log-head span { color: var(--ink-soft); font-size: 12px; }
+.lv-log-remark { margin-top: 4px; overflow-wrap: anywhere; white-space: pre-wrap; }
+@media (max-width: 860px) { .lv-grid { grid-template-columns: 120px 1fr; } }
+
+/* ADDED: Back button shown at the top of every page (except Dashboard) */
+.back-btn { margin-bottom: 12px; }

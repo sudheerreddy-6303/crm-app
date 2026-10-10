@@ -6,6 +6,10 @@ import LeadModal from "../components/LeadModal.jsx";
 import WalkinModal from "../components/WalkinModal.jsx";
 // ADDED: "Convert to lead" pop-up for the walk-in table
 import ConvertWalkinModal from "../components/ConvertWalkinModal.jsx";
+// ADDED: read-only "View" pop-up for the lead cards (admin only)
+import LeadViewModal from "../components/LeadViewModal.jsx";
+// ADDED: Excel export of the filtered leads (same library the Import page uses)
+import * as XLSX from "xlsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 
@@ -74,12 +78,16 @@ export default function Leads() {
     project: searchParams.get("project") || "",
     // ADDED: stage=leads comes from the dashboard "Leads" card
     stage: searchParams.get("stage") || "",
+    // ADDED: walkin=Yes comes from the telecaller dashboard "Walk-ins" card
+    walkin: searchParams.get("walkin") || "",
   });
   // ADDED: project names for the filter dropdown
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState([]);
   const [assignTo, setAssignTo] = useState("");
   const [modalLead, setModalLead] = useState(null); // null closed, {} new, {..} edit
+  // ADDED: lead shown in the read-only "View" pop-up (admin only)
+  const [viewLead, setViewLead] = useState(null);
   const [msg, setMsg] = useState({ type: "", text: "" });
   // ADDED: card view for the dashboard "Leads" card (stage=leads). Cards are the
   // default there; the Cards / Table switch shows the original tables again.
@@ -180,6 +188,68 @@ export default function Leads() {
   const toggleAll = () =>
     setSelected((prev) => (prev.length === leads.length ? [] : leads.map((l) => l.id)));
 
+  // ADDED: Export to Excel (admin only). Exports ALL leads matching the
+  // current filters - e.g. pick "Vue" in the Projects filter and every Vue
+  // lead (all pages, not just the 50 on screen) is downloaded with full
+  // details. Read-only: nothing in the database is changed.
+  const [exporting, setExporting] = useState(false);
+  const exportLeads = async () => {
+    setExporting(true);
+    try {
+      const all = [];
+      const per = 200; // the API returns at most 200 per request
+      for (let pg = 1; pg <= 2000; pg++) {
+        const q = new URLSearchParams({ ...filters, page: pg, limit: per }).toString();
+        const d = await api(`/leads?${q}`);
+        all.push(...(d.leads || []));
+        if (!d.leads || d.leads.length < per || all.length >= d.total) break;
+      }
+      if (all.length === 0) { flash("error", "No leads to export"); return; }
+      const d10 = (v) => (v ? String(v).slice(0, 10) : "");
+      const rows = all.map((l) => ({
+        "Name": l.name || "",
+        "Project": l.project_name || "",
+        "Project type": l.project_type || "",
+        "Primary phone": l.primary_phone || "",
+        "Caller": l.caller_name || "",
+        "Priority": l.priority && l.priority !== "none" ? l.priority : "",
+        "Source": l.source || "",
+        "Walk-in": l.walkin || "",
+        "Call category": l.call_category || "",
+        "Quote sent": l.quote_sent || "",
+        "Order booked": l.order_booked || "",
+        "1st call": d10(l.first_calling_date),
+        "2nd call": d10(l.second_calling_date),
+        "Next call": d10(l.next_call_date),
+        "Calling remark": l.calling_remark || "",
+        "Call 1 remark": l.call_remark_1 || "",
+        "Call 2 remark": l.call_remark_2 || "",
+        "Call 3 remark": l.call_remark_3 || "",
+        "WhatsApp sent date": d10(l.whatsapp_sent_date),
+        "WA category": l.whatsapp_category || "",
+        "WhatsApp 1 date": d10(l.whatsapp_date_1),
+        "WhatsApp 2 date": d10(l.whatsapp_date_2),
+        "WhatsApp 3 date": d10(l.whatsapp_date_3),
+        "Created": d10(l.created_at),
+        "Last updated": d10(l.updated_at),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // keep phone numbers as text so Excel doesn't show 9.85E+09
+      Object.keys(ws).forEach((k) => { if (k[0] !== "!" && ws[k].t === "n") { ws[k].t = "s"; ws[k].v = String(ws[k].v); } });
+      ws["!cols"] = Object.keys(rows[0]).map((h) => ({ wch: /remark/i.test(h) ? 40 : Math.max(12, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Leads");
+      const today = new Date().toISOString().slice(0, 10);
+      const tag = filters.project ? filters.project.replace(/[^\w-]+/g, "_") : "All_projects";
+      XLSX.writeFile(wb, `Leads_${tag}_${today}.xlsx`);
+      flash("success", `Exported ${all.length} leads`);
+    } catch (e) {
+      flash("error", e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const pages = Math.max(1, Math.ceil(total / limit));
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
   // ADDED: true when the card view is showing (only in the "Leads" card view)
@@ -188,7 +258,18 @@ export default function Leads() {
   // ?category=FOLLOW UP). If the category filter is changed on the page, the
   // normal table comes back.
   const fromFollowUpCard = searchParams.get("category") === "FOLLOW UP";
-  const cardsAllowed = filters.stage === "leads" || (fromFollowUpCard && filters.category === "FOLLOW UP");
+  // ORIGINAL: const cardsAllowed = filters.stage === "leads" || (fromFollowUpCard && filters.category === "FOLLOW UP");
+  // UPDATED: cards also for the dashboard "Interested" card (opened with
+  // ?category=INTERESTED). Same Cards / Table switch; the table is unchanged.
+  const fromInterestedCard = searchParams.get("category") === "INTERESTED";
+  const cardsAllowed = filters.stage === "leads"
+    || (fromFollowUpCard && filters.category === "FOLLOW UP")
+    || (fromInterestedCard && filters.category === "INTERESTED")
+    // ADDED: cards also for the dashboard "Quotes sent" card (opened with
+    // ?quote=Yes). If the Quote sent filter is changed, the table comes back.
+    || (searchParams.get("quote") === "Yes" && filters.quote === "Yes")
+    // ADDED: cards also for the telecaller "Walk-ins" card (?walkin=Yes)
+    || (filters.walkin === "Yes");
   const showCards = cardsAllowed && viewMode === "cards";
 
   return (
@@ -240,6 +321,13 @@ export default function Leads() {
             Leads only (warm/cold, interested, quote sent, walk-in) ✕
           </button>
         )}
+        {/* ADDED: shown when opened from the "Walk-ins" card; click to remove */}
+        {filters.walkin && (
+          <button className="btn small secondary" title="Remove this filter"
+                  onClick={() => { setPage(1); setFilters({ ...filters, walkin: "" }); }}>
+            Walk-in = {filters.walkin} ✕
+          </button>
+        )}
         {/* ADDED: Cards / Table switch for the "Leads" card view */}
         {/* ORIGINAL: {filters.stage === "leads" && ( - UPDATED: also for Follow up */}
         {cardsAllowed && (
@@ -251,6 +339,13 @@ export default function Leads() {
         {/* ORIGINAL: {isAdmin && <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>}
             UPDATED: telecallers can also add a single lead (auto-assigned to them) */}
         <button className="btn" onClick={() => setModalLead({})}>+ Add lead</button>
+        {/* ADDED: export the filtered leads to Excel (admin only) */}
+        {isAdmin && (
+          <button className="btn secondary" onClick={exportLeads} disabled={exporting}
+                  title={filters.project ? `Download all ${filters.project} leads as Excel` : "Download the filtered leads as Excel"}>
+            {exporting ? "Exporting..." : `⬇ Export${filters.project ? ` ${filters.project}` : ""} (${total})`}
+          </button>
+        )}
       </div>
 
       {isAdmin && (
@@ -274,7 +369,14 @@ export default function Leads() {
             // Quote sent, Order booked - with WhatsApp + Edit at the bottom.
             // Edit opens the same "Edit lead" form as the table's Edit button.
             <div className="lead-card" key={l.id}>
-              <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}</div>
+              {/* UPDATED: name row now also has a "View" button on the right (admin only).
+                  ORIGINAL name line kept exactly as it was, inside this row. */}
+              <div className="lc-head">
+                <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}</div>
+                {isAdmin && (
+                  <button className="btn small secondary lc-view" title="View full details" onClick={() => setViewLead(l)}>View</button>
+                )}
+              </div>
               <div className="lc-grid">
                 <span>Project</span><b>{l.project_name || "-"}</b>
                 {/* ADDED: project type (2BHK / 3BHK / 4BHK / Villa / Commercial / Others) */}
@@ -314,7 +416,9 @@ export default function Leads() {
                 <button className="btn small wa-btn" title="Send WhatsApp message" onClick={() => openWhatsApp(l)}>
                   <WhatsAppIcon /><span style={{ marginLeft: 6 }}>WhatsApp</span>
                 </button>
-                <button className="btn small secondary" onClick={() => setModalLead(l)}>Edit</button>
+                {/* ORIGINAL: <button className="btn small secondary" onClick={() => setModalLead(l)}>Edit</button>
+                    UPDATED: label changed to "Follow up" on the cards - still opens the same lead form */}
+                <button className="btn small secondary" onClick={() => setModalLead(l)}>Follow up</button>
                 {/* ADDED: Delete on the card - admin only, same as the table (asks to confirm) */}
                 {isAdmin && <button className="btn small danger" onClick={() => removeLead(l.id)}>Delete</button>}
               </div>
@@ -607,6 +711,11 @@ export default function Leads() {
           onClose={() => setModalWalkin(null)}
           onSaved={() => { setModalWalkin(null); loadWalkinLeads(); }}
         />
+      )}
+
+      {/* ADDED: read-only full details pop-up (admin only) */}
+      {isAdmin && viewLead && (
+        <LeadViewModal lead={viewLead} onClose={() => setViewLead(null)} />
       )}
 
       {modalLead !== null && (

@@ -46,6 +46,10 @@ export default function ProjectCards() {
                 <div style={{ fontSize: 12.5, marginTop: 6, color: "var(--ink-soft)" }}>
                   Interested {p.interested || 0} · Follow up {p.follow_up || 0} · Orders {p.orders_booked || 0}
                 </div>
+                {/* ADDED: walk-ins and quotations for this project */}
+                <div style={{ fontSize: 12.5, marginTop: 4, color: "var(--ink-soft)" }}>
+                  Walk-ins {p.walkins || 0} · Quotations {p.quotes_sent || 0}
+                </div>
               </div>
             </div>
           ))}

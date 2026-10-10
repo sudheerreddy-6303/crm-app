@@ -39,6 +39,13 @@ function Shell({ children }) {
   const location = useLocation();
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
+  // ADDED: Back button handler (see the button above the page content)
+  const goBack = () => {
+    const idx = window.history.state && window.history.state.idx;
+    if (typeof idx === "number" && idx > 0) navigate(-1);
+    else navigate("/dashboard");
+  };
+
   return (
     <div className="app-shell">
       {/* ORIGINAL: <aside className="sidebar"> */}
@@ -84,7 +91,19 @@ function Shell({ children }) {
           <button onClick={logout}>Log out</button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      {/* ORIGINAL: <main className="main">{children}</main>
+          UPDATED: a "Back" button above every page (not on the Dashboard,
+          which is the home page). It goes to the previous page; if there is
+          no previous page in this tab (e.g. link opened directly) it goes to
+          the Dashboard. Page content below is unchanged. */}
+      <main className="main">
+        {location.pathname !== "/dashboard" && (
+          <button type="button" className="btn small secondary back-btn" onClick={goBack} title="Go back">
+            ← Back
+          </button>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+// ADDED: the same Dashboard the telecaller sees, shown here for the admin
+import Dashboard from "./Dashboard.jsx";
 
 const fmt = (d) => (d ? String(d).slice(0, 10) : "-");
 
@@ -84,6 +86,14 @@ export default function TelecallerDetail() {
         {user.email} {user.phone ? `· ${user.phone}` : ""} ·{" "}
         <span className={`chip ${user.status === "active" ? "yes" : "no"}`}>{user.status}</span>
       </p>
+
+      {/* ADDED: the telecaller's own dashboard - same cards, numbers, filters and
+          upcoming follow-ups they see when they log in. Cards open the Leads
+          page filtered to this telecaller. */}
+      <Dashboard asUser={{ id: user.id, name: user.name }} />
+
+      {/* ORIGINAL activity section below - unchanged */}
+      <h3 style={{ margin: "26px 0 10px" }}>Call activity</h3>
 
       {/* ADDED: calendar filter - pick a date range to check the data for that period */}
       <div className="filters">

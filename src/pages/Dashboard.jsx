@@ -2,8 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, getUser } from "../api.js";
 
-export default function Dashboard() {
-  const user = getUser();
+// UPDATED: optional asUser prop ({ id, name }). When the admin opens a
+// telecaller (Telecallers page -> name), this same dashboard is shown "as"
+// that telecaller - exactly the cards and follow-ups they see when they log
+// in. Without the prop (normal Dashboard page) nothing changes.
+// ORIGINAL: export default function Dashboard() {
+// ORIGINAL:   const user = getUser();
+export default function Dashboard({ asUser = null } = {}) {
+  const user = asUser ? { ...asUser, role: "telecaller" } : getUser();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   // ADDED: calendar filter (from / to dates) - all dashboard data follows it
@@ -19,10 +25,11 @@ export default function Dashboard() {
 
   // ADDED: load the list of project names once for the filter dropdown
   useEffect(() => {
-    api("/dashboard/projects")
+    // ORIGINAL: api("/dashboard/projects") - UPDATED: as a telecaller, only their projects
+    api(asUser ? `/dashboard/projects?assigned=${asUser.id}` : "/dashboard/projects")
       .then((d) => setProjects(d.projects || []))
       .catch(() => {});
-  }, []);
+  }, [asUser?.id]);
 
   useEffect(() => {
     const q = new URLSearchParams();
@@ -30,10 +37,12 @@ export default function Dashboard() {
     if (range.to) q.set("to", range.to);
     // ADDED: pass the selected project so the returned totals are project-scoped
     if (project) q.set("project", project);
+    // ADDED: telecaller view for the admin (backend returns that telecaller's dashboard)
+    if (asUser) q.set("as_user", asUser.id);
     api(`/dashboard${q.toString() ? `?${q}` : ""}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [range, project]);
+  }, [range, project, asUser?.id]);
 
   if (error) return <div className="error-msg">{error}</div>;
   if (!data) return <div className="empty">Loading dashboard...</div>;
@@ -63,6 +72,12 @@ export default function Dashboard() {
     { label: "Quotes sent", value: t.quotes_sent, cls: "k-blue", link: "/leads?quote=Yes" },
     { label: "Orders booked", value: t.orders_booked, cls: "k-green", link: "/leads?order=Yes" },
     { label: "Calls due today", value: t.due_today, cls: "k-amber", link: "/leads?due=today" },
+    // ADDED: telecaller's walk-ins = their leads marked Walk-in = Yes
+    // (telecaller dashboard + admin's view of a telecaller; admin's own
+    // dashboard keeps the existing "Walk-ins visited" card instead)
+    ...(user.role !== "admin"
+      ? [{ label: "Walk-ins", value: t.walkin_leads, cls: "k-green", link: "/leads?walkin=Yes" }]
+      : []),
     ...(user.role === "admin"
       ? [
           { label: "Unassigned leads", value: data.unassigned, cls: "k-red", link: "/leads?assigned=unassigned" },
@@ -74,22 +89,53 @@ export default function Dashboard() {
       : []),
   ];
 
+  // ADDED: display order of the dashboard cards. Same cards, same numbers and
+  // links as CARDS above - only the order they are shown in changes:
+  // 1. Total database, 2. Walk-ins visited, 3. Quotes sent, 4. Follow up,
+  // 5. Leads, then all remaining cards in their original order.
+  // (Walk-ins visited is admin-only, so telecallers simply skip it.)
+  // UPDATED: "Walk-ins" (telecaller card) takes the same 2nd place as the admin's "Walk-ins visited"
+  // ORIGINAL: const CARD_ORDER = ["Total database", "Walk-ins visited", "Quotes sent", "Follow up", "Leads"];
+  const CARD_ORDER = ["Total database", "Walk-ins visited", "Walk-ins", "Quotes sent", "Follow up", "Leads"];
+  const ORDERED_CARDS = [
+    ...CARD_ORDER.map((label) => CARDS.find((c) => c.label === label)).filter(Boolean),
+    ...CARDS.filter((c) => !CARD_ORDER.includes(c.label)),
+  ];
+
   // ADDED: keeps the project filter when drilling into the Leads page from a
   // card, so the leads shown there match the (project-filtered) card number.
   // Only lead cards carry it; the Walk-ins card is left untouched.
-  const withProject = (link) => {
+  // ORIGINAL withProject (kept, renamed):
+  const withProjectOnly = (link) => {
     if (!project || !link || !link.startsWith("/leads")) return link;
     return link + (link.includes("?") ? "&" : "?") + `project=${encodeURIComponent(project)}`;
+  };
+  // UPDATED: in the telecaller view, card clicks also keep that telecaller
+  // (assigned=<id>) so the admin sees only that telecaller's leads.
+  const withProject = (link) => {
+    const l = withProjectOnly(link);
+    if (!asUser || !l || !l.startsWith("/leads")) return l;
+    return l + (l.includes("?") ? "&" : "?") + `assigned=${asUser.id}`;
   };
 
   return (
     <div>
+      {/* ORIGINAL title kept for the normal Dashboard page */}
+      {asUser ? (
+        <>
+          <h3 style={{ margin: "4px 0 4px" }}>{user.name}'s dashboard</h3>
+          <p className="page-sub">Exactly what {user.name} sees on their own dashboard</p>
+        </>
+      ) : (
+      <>
       <h1 className="page-title">Dashboard</h1>
       <p className="page-sub">
         {user.role === "admin"
           ? "Overview of all leads and telecaller performance"
           : `Your assigned leads at a glance, ${user.name}`}
       </p>
+      </>
+      )}
 
       {/* ADDED: calendar filter - all cards, performance and follow-ups follow it */}
       <div className="filters">
@@ -126,7 +172,8 @@ export default function Dashboard() {
       </div>
 
       <div className="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3" style={{ marginBottom: 22 }}>
-        {CARDS.map((c) => (
+        {/* ORIGINAL: {CARDS.map((c) => (  - UPDATED: uses the new card order */}
+        {ORDERED_CARDS.map((c) => (
           <div className="col" key={c.label}>
             <div
               className={`kpi kpi-lg clickable ${c.cls}`}

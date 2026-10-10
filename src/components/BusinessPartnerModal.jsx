@@ -7,6 +7,8 @@ import { api } from "../api.js";
 // backend/routes/businessPartners.js (PARTNER_CATEGORIES).
 export const PARTNER_CATEGORIES = [
   "Business Associates", "Builders", "Contractors", "Franchise Prospect",
+  // ADDED: new category
+  "Sales",
 ];
 
 export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
