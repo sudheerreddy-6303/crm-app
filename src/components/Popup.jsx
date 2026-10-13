@@ -6,8 +6,12 @@ import React, { useEffect, useRef, useState } from "react";
 // form gets it automatically - no change needed in each form.
 //   success -> green ✓ popup, closes by itself after 2.5s (or tap OK)
 //   error   -> red ✕ popup, stays until OK is tapped so it isn't missed
-export function showPopup(type, text) {
-  window.dispatchEvent(new CustomEvent("crm-popup", { detail: { type, text } }));
+// UPDATED: optional 3rd argument "title" (e.g. "Numbers copied"). Without it
+// the heading is the same as before ("Saved successfully" / "Something went wrong").
+// ORIGINAL: export function showPopup(type, text) {
+// ORIGINAL:   window.dispatchEvent(new CustomEvent("crm-popup", { detail: { type, text } }));
+export function showPopup(type, text, title) {
+  window.dispatchEvent(new CustomEvent("crm-popup", { detail: { type, text, title } }));
 }
 
 export default function Popup() {
@@ -33,7 +37,9 @@ export default function Popup() {
     <div className="crm-popup-wrap" role="alertdialog" aria-live="assertive">
       <div className={`crm-popup ${ok ? "ok" : "err"}`}>
         <div className="crm-popup-icon">{ok ? "✓" : "✕"}</div>
-        <div className="crm-popup-title">{ok ? "Saved successfully" : "Something went wrong"}</div>
+        {/* ORIGINAL: <div className="crm-popup-title">{ok ? "Saved successfully" : "Something went wrong"}</div>
+            UPDATED: a custom heading is used when one is given (same default otherwise) */}
+        <div className="crm-popup-title">{popup.title || (ok ? "Saved successfully" : "Something went wrong")}</div>
         <div className="crm-popup-text">{popup.text}</div>
         <button className="btn" onClick={() => { clearTimeout(timer.current); setPopup(null); }}>OK</button>
       </div>

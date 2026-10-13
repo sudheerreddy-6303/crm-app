@@ -28,7 +28,9 @@ export default function ConvertWalkinModal({ walkin, onClose, onConverted }) {
         method: "POST",
         body: JSON.stringify({ assigned_to: assignTo || null }),
       });
-      onConverted(data.message);
+      // UPDATED: also passes the new lead's id (used to open its Follow up form)
+      // ORIGINAL: onConverted(data.message);
+      onConverted(data.message, data.id);
     } catch (e) {
       setError(e.message);
     } finally {

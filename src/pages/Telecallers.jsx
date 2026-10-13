@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../api.js";
+// ADDED: admin "Export to Excel" (shared helper + button)
+import ExportButton from "../components/ExportButton.jsx";
+import { downloadExcel, d10 } from "../utils/exportExcel.js";
 
 export default function Telecallers() {
   const me = getUser();
@@ -51,6 +54,11 @@ export default function Telecallers() {
 
       <div className="filters">
         <button className="btn" onClick={() => setModal({})}>+ Add telecaller</button>
+        {/* ADDED: Export to Excel (this page is admin only) */}
+        <ExportButton onExport={async () => downloadExcel([{ name: "Team", rows: users.map((u) => ({
+          "Name": u.name || "", "Email": u.email || "", "Phone": u.phone || "", "Role": u.role || "",
+          "Status": u.status || "", "Leads assigned": Number(u.lead_count || 0), "Created": d10(u.created_at),
+        })), numberCols: ["Leads assigned"] }], "Telecallers")} />
       </div>
 
       <div className="card" style={{ padding: 0 }}>

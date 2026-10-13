@@ -8,6 +8,10 @@ import { api, getUser } from "../api.js";
 import ProjectModal, { PROJECT_TYPES, PROJECT_STATUSES } from "../components/ProjectModal.jsx";
 // ADDED: read-only "View" pop-up for the project cards
 import ProjectViewModal from "../components/ProjectViewModal.jsx";
+// ADDED: admin "Export to Excel" (shared helper + button)
+import ExportButton from "../components/ExportButton.jsx";
+import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
+import { showPopup } from "../components/Popup.jsx";
 
 // ADDED: Project Details page - table of all projects, search + type/status
 // filters, and a top-right "+ Add project" button. Mirrors the Walk-ins page.
@@ -104,7 +108,8 @@ export default function ProjectDetails() {
         all.push(...(d.projects || []));
         if (!d.projects || d.projects.length < per || all.length >= d.total) break;
       }
-      if (all.length === 0) { flash("error", "No projects to export"); return; }
+      // UPDATED: pop-ups added (message line kept)
+      if (all.length === 0) { flash("error", "No projects to export"); showPopup("error", "There are no projects to export.", "Nothing to export"); return; }
       const rows = all.map((p) => ({
         "Project name": p.project_name || "",
         "Owner contact": p.owner_contact || "",
@@ -120,8 +125,10 @@ export default function ProjectDetails() {
       XLSX.utils.book_append_sheet(wb, ws, "Project phones");
       const today = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `Project_Phone_Numbers_${today}.xlsx`);
+      showPopup("success", `${all.length} project${all.length === 1 ? "" : "s"} exported with phone numbers.`, "Exported to Excel");
     } catch (e) {
       flash("error", e.message);
+      showPopup("error", e.message, "Export failed");
     } finally {
       setExporting(false);
     }
@@ -140,9 +147,33 @@ export default function ProjectDetails() {
         {/* ORIGINAL: <button className="btn" onClick={() => setModalProject({})}>+ Add project</button>
             UPDATED: same button, now next to the new Export button */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {/* ADDED: full Export to Excel (admin only) - every project detail + the summary cards */}
+          {isAdmin && <ExportButton onExport={async () => {
+            const rows = await fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects");
+            return downloadExcel([
+              { name: "Project details", rows: rows.map((p) => ({
+                "Project name": p.project_name || "", "Type": p.type || "", "Status": p.status || "",
+                "Location": p.location || "", "Address": p.address || "", "Owner contact": p.owner_contact || "",
+                "Secondary no.": p.secondary_number || "", "Sales executive": p.sales_executive || "",
+                "Phone 1": p.phone1 || "", "Phone 2": p.phone2 || "", "Data in CRM": p.data_in_crm || "",
+                "Marketing": p.marketing || "", "Rounds called": Number(p.rounds_called || 0),
+                "Last call": d10(p.last_calling_date), "Units booked (interiors)": Number(p.units_booked_interiors || 0),
+                "Units sold": Number(p.units_sold || 0), "Added by": p.created_by_name || "", "Created": d10(p.created_at),
+              })), numberCols: ["Rounds called", "Units booked (interiors)", "Units sold"] },
+              { name: "Projects summary", rows: summary.map((p) => ({
+                "Project": p.name, "Type": p.type || "", "Location": p.location || "",
+                "Total database": Number(p.total_leads || 0), "Walk-ins": Number(p.walkins || 0),
+                "Quotes sent": Number(p.quotes_sent || 0), "Leads": Number(p.leads || 0),
+                "Follow up": Number(p.follow_up || 0), "Interested": Number(p.interested || 0), "Orders": Number(p.orders_booked || 0),
+              })), numberCols: ["Total database", "Walk-ins", "Quotes sent", "Leads", "Follow up", "Interested", "Orders"] },
+            ], "Project_details");
+          }} />}
+          {/* UPDATED: Excel exports are admin only - this button is now shown to admins only */}
+          {isAdmin && (
           <button className="btn secondary" onClick={exportPhones} disabled={exporting} title="Download project names and phone numbers as Excel">
             {exporting ? "Exporting..." : "⬇ Export phone numbers"}
           </button>
+          )}
           <button className="btn" onClick={() => setModalProject({})}>+ Add project</button>
         </div>
       </div>
@@ -165,13 +196,23 @@ export default function ProjectDetails() {
                 onClick={() => navigate(`/leads?project=${encodeURIComponent(p.name)}`)}
                 title={`View leads for ${p.name}`}
               >
-                <div className="label">{p.name}</div>
+                {/* ORIGINAL: <div className="label">{p.name}</div>
+                    UPDATED: project type on the right of the name, location below it */}
+                <div className="pc-head">
+                  <div className="label">{p.name}</div>
+                  {p.type && <span className="chip none pc-type">{p.type}</span>}
+                </div>
+                <div className={`pc-loc${p.location ? "" : " pc-loc-missing"}`}>📍 {p.location || "Location not added"}</div>
                 <div className="value">{p.total_leads || 0}</div>
+                {/* UPDATED order (same as the dashboard): big number = total database,
+                    then Walk-ins · Quotes sent · Leads · Follow up.
+                    PREVIOUS lines: "Interested · Follow up · Orders" and
+                    "Walk-ins · Quotations" - Interested and Orders kept on line 2 */}
                 <div style={{ fontSize: 12.5, marginTop: 6, color: "var(--ink-soft)" }}>
-                  Interested {p.interested || 0} · Follow up {p.follow_up || 0} · Orders {p.orders_booked || 0}
+                  Walk-ins {p.walkins || 0} · Quotes sent {p.quotes_sent || 0} · Leads {p.leads || 0} · Follow up {p.follow_up || 0}
                 </div>
                 <div style={{ fontSize: 12.5, marginTop: 4, color: "var(--ink-soft)" }}>
-                  Walk-ins {p.walkins || 0} · Quotations {p.quotes_sent || 0}
+                  Interested {p.interested || 0} · Orders {p.orders_booked || 0}
                 </div>
               </div>
             </div>

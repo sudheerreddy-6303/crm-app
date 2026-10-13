@@ -3,6 +3,9 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 // ADDED: the same Dashboard the telecaller sees, shown here for the admin
 import Dashboard from "./Dashboard.jsx";
+// ADDED: admin "Export to Excel" (shared helper + button)
+import ExportButton from "../components/ExportButton.jsx";
+import { downloadExcel, d10 } from "../utils/exportExcel.js";
 
 const fmt = (d) => (d ? String(d).slice(0, 10) : "-");
 
@@ -93,7 +96,25 @@ export default function TelecallerDetail() {
       <Dashboard asUser={{ id: user.id, name: user.name }} />
 
       {/* ORIGINAL activity section below - unchanged */}
-      <h3 style={{ margin: "26px 0 10px" }}>Call activity</h3>
+      {/* UPDATED: heading row now also has the Export button (admin-only page) */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "26px 0 10px" }}>
+      <h3 style={{ margin: 0 }}>Call activity</h3>
+      <ExportButton className="btn small secondary" onExport={async () => downloadExcel([
+        { name: "Summary", rows: CARDS.map((c) => ({ "Card": c.label, "Value": Number(c.value || 0) })), numberCols: ["Value"] },
+        { name: "Calls per day", rows: daily.map((d) => ({
+          "Date": d10(d.day), "Total calls": Number(d.calls || 0), "Interested": Number(d.interested || 0),
+          "Follow up": Number(d.follow_up || 0), "Not interested": Number(d.not_interested || 0), "Not answered": Number(d.not_answered || 0),
+        })), numberCols: ["Total calls", "Interested", "Follow up", "Not interested", "Not answered"] },
+        { name: "Assigned leads", rows: leads.map((l) => ({
+          "Name": l.name, "Phone": l.primary_phone || "", "1st call": d10(l.first_calling_date), "Category": l.call_category || "Fresh",
+          "Quote": l.quote_sent || "", "Order": l.order_booked || "", "2nd call": d10(l.second_calling_date),
+          "WA date": d10(l.whatsapp_sent_date), "WA category": l.whatsapp_category || "", "Remark": l.calling_remark || "",
+          "Call 1 remark": l.call_remark_1 || "", "Call 2 remark": l.call_remark_2 || "", "Call 3 remark": l.call_remark_3 || "",
+          "WhatsApp 1 date": d10(l.whatsapp_date_1), "WhatsApp 2 date": d10(l.whatsapp_date_2), "WhatsApp 3 date": d10(l.whatsapp_date_3),
+          "Next call": d10(l.next_call_date), "Last updated": d10(l.updated_at),
+        })) },
+      ], `Telecaller_${user.name}`)} />
+      </div>
 
       {/* ADDED: calendar filter - pick a date range to check the data for that period */}
       <div className="filters">

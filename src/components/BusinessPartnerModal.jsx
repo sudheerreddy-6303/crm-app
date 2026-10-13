@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
+// ADDED: pop-up when a required field is missing
+import { showPopup } from "./Popup.jsx";
 
 // ADDED: Business Associates & Franchise add/edit modal - opened by the "+ Add"
 // button on the Business Associates & Franchise page. Same pattern as WalkinModal.
@@ -16,6 +18,8 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
   const [form, setForm] = useState({
     person_name: partner.person_name || "",
     contact: partner.contact || "",
+    // ADDED: owner's name
+    owner_name: partner.owner_name || "",
     business_name: partner.business_name || "",
     location: partner.location || "",
     whatsapp: partner.whatsapp || "",
@@ -36,8 +40,19 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
 
   const save = async () => {
     setError("");
-    if (!form.person_name.trim() || !form.contact.trim()) {
-      return setError("Person name and contact number are required");
+    // UPDATED: required fields - Person name, Contact number, Business name,
+    // Location (marked * in the form). A pop-up lists what is missing.
+    // ORIGINAL: if (!form.person_name.trim() || !form.contact.trim()) {
+    // ORIGINAL:   return setError("Person name and contact number are required");
+    // ORIGINAL: }
+    const missing = [
+      ["Person name", form.person_name], ["Contact number", form.contact],
+      ["Business name", form.business_name], ["Location", form.location],
+    ].filter(([, v]) => !String(v || "").trim()).map(([k]) => k);
+    if (missing.length) {
+      const text = `Please fill in: ${missing.join(", ")}`;
+      showPopup("error", text, "Required fields missing");
+      return setError(text);
     }
     setSaving(true);
     try {
@@ -65,19 +80,25 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
 
         <div className="form-grid">
           <div>
-            <label>Person name</label>
+            {/* UPDATED: * = required (it was already required) */}
+            <label>Person name <span className="req">*</span></label>
             <input value={form.person_name} onChange={(e) => set("person_name", e.target.value)} placeholder="Contact person name" />
           </div>
           <div>
-            <label>Contact number</label>
+            <label>Contact number <span className="req">*</span></label>
             <input value={form.contact} onChange={(e) => set("contact", e.target.value)} placeholder="Phone number" />
           </div>
+          {/* ADDED: Owner's name - right after the contact number */}
           <div>
-            <label>Business name</label>
+            <label>Owner name</label>
+            <input value={form.owner_name} onChange={(e) => set("owner_name", e.target.value)} placeholder="Owner's name" />
+          </div>
+          <div>
+            <label>Business name <span className="req">*</span></label>
             <input value={form.business_name} onChange={(e) => set("business_name", e.target.value)} placeholder="Company / firm name" />
           </div>
           <div>
-            <label>Location</label>
+            <label>Location <span className="req">*</span></label>
             <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / city" />
           </div>
           <div>

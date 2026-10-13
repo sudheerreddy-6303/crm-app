@@ -22,6 +22,8 @@ import ProjectCards from "./pages/ProjectCards.jsx";
 import BusinessPartners from "./pages/BusinessPartners.jsx";
 // ADDED: app-wide success / error popup (shown after every save)
 import Popup from "./components/Popup.jsx";
+// ADDED: notifications bell (top-right corner) for telecallers
+import NotificationBell from "./components/NotificationBell.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -97,10 +99,17 @@ function Shell({ children }) {
           no previous page in this tab (e.g. link opened directly) it goes to
           the Dashboard. Page content below is unchanged. */}
       <main className="main">
-        {location.pathname !== "/dashboard" && (
-          <button type="button" className="btn small secondary back-btn" onClick={goBack} title="Go back">
-            ← Back
-          </button>
+        {/* UPDATED: top bar - Back button on the left (unchanged), and the
+            notifications bell on the right for telecallers */}
+        {(location.pathname !== "/dashboard" || user?.role === "telecaller") && (
+          <div className="main-topbar">
+            {location.pathname !== "/dashboard" ? (
+              <button type="button" className="btn small secondary back-btn" onClick={goBack} title="Go back">
+                ← Back
+              </button>
+            ) : <span />}
+            {user?.role === "telecaller" && <NotificationBell />}
+          </div>
         )}
         {children}
       </main>

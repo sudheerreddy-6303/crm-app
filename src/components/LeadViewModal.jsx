@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from "react";
+// UPDATED: useCallback added (for the call-history loader)
+import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
+// ADDED: call history with admin replies (same component as the lead form)
+import CallHistory from "./CallHistory.jsx";
 
 // ADDED: read-only "View" pop-up for a lead (admin only). Opened by the
 // "View" button next to the name on the lead cards. Shows every saved detail
@@ -17,9 +20,11 @@ export default function LeadViewModal({ lead, onClose }) {
   const [logs, setLogs] = useState([]);
 
   // call history (read-only, existing GET /api/leads/:id/logs endpoint)
-  useEffect(() => {
+  // UPDATED: kept in a function so the list refreshes after a reply
+  const loadLogs = useCallback(() => {
     api(`/leads/${lead.id}/logs`).then((rows) => setLogs(Array.isArray(rows) ? rows : [])).catch(() => setLogs([]));
   }, [lead.id]);
+  useEffect(() => { loadLogs(); }, [loadLogs]);
 
   const sections = [
     ["Lead", [
@@ -36,6 +41,9 @@ export default function LeadViewModal({ lead, onClose }) {
       ["Call category", val(lead.call_category) === "-" ? "Fresh (not called)" : lead.call_category],
       ["Quote sent", val(lead.quote_sent)],
       ["Order booked", val(lead.order_booked)],
+      // ADDED: Revenue booked (amount)
+      ["Revenue booked", lead.revenue_booked === null || lead.revenue_booked === undefined || lead.revenue_booked === ""
+        ? "-" : `₹ ${Number(lead.revenue_booked).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`],
       ["Next call", fmtDate(lead.next_call_date)],
     ]],
     ["Calls", [
@@ -80,21 +88,10 @@ export default function LeadViewModal({ lead, onClose }) {
 
         <div className="lv-section">
           <div className="lv-title">Call history ({logs.length})</div>
-          {logs.length === 0 ? (
-            <div className="lv-empty">No call history yet.</div>
-          ) : (
-            <div className="lv-logs">
-              {logs.map((g) => (
-                <div className="lv-log" key={g.id}>
-                  <div className="lv-log-head">
-                    <b>{g.category || "-"}</b>
-                    <span>{fmtDateTime(g.log_date)}{g.user_name ? ` · ${g.user_name}` : ""}</span>
-                  </div>
-                  {g.remark && <div className="lv-log-remark">{g.remark}</div>}
-                </div>
-              ))}
-            </div>
-          )}
+          {/* ORIGINAL: read-only list of logs (category, date, telecaller, remark).
+              UPDATED: CallHistory - same details plus admin replies + Reply
+              button (this pop-up is admin-only). */}
+          <CallHistory leadId={lead.id} logs={logs} isAdmin={true} onChanged={loadLogs} />
         </div>
 
         <div className="actions">

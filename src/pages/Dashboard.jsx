@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, getUser } from "../api.js";
+// ADDED: admin "Export to Excel" (shared helper + button)
+import ExportButton from "../components/ExportButton.jsx";
+import { downloadExcel, d10 } from "../utils/exportExcel.js";
 
 // UPDATED: optional asUser prop ({ id, name }). When the admin opens a
 // telecaller (Telecallers page -> name), this same dashboard is shown "as"
@@ -9,7 +12,25 @@ import { api, getUser } from "../api.js";
 // ORIGINAL: export default function Dashboard() {
 // ORIGINAL:   const user = getUser();
 export default function Dashboard({ asUser = null } = {}) {
-  const user = asUser ? { ...asUser, role: "telecaller" } : getUser();
+  // ADDED: "Telecaller" filter (top-right, admin's own dashboard only). When a
+  // telecaller is picked, the whole dashboard shows that telecaller's data -
+  // the same view as the admin's telecaller page / the telecaller's own login.
+  const realUser = getUser();
+  const realIsAdmin = !asUser && realUser?.role === "admin";
+  // remembered for this browser tab, so the choice is kept after Back
+  const [tcId, setTcIdState] = useState(() => {
+    try { return (!asUser && sessionStorage.getItem("dash_tc")) || ""; } catch (e) { return ""; }
+  });                                               // "" = All telecallers
+  const setTcId = (v) => {
+    setTcIdState(v);
+    try { if (v) sessionStorage.setItem("dash_tc", v); else sessionStorage.removeItem("dash_tc"); } catch (e) { /* ignore */ }
+  };
+  const [telecallers, setTelecallers] = useState([]);
+  const selectedTc = tcId ? telecallers.find((t) => String(t.id) === String(tcId)) : null;
+  // whose dashboard is shown: the asUser prop, else the picked telecaller, else nobody
+  const viewAs = asUser || (selectedTc ? { id: selectedTc.id, name: selectedTc.name } : null);
+  // ORIGINAL: const user = asUser ? { ...asUser, role: "telecaller" } : getUser();
+  const user = viewAs ? { ...viewAs, role: "telecaller" } : realUser;
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   // ADDED: calendar filter (from / to dates) - all dashboard data follows it
@@ -23,13 +44,24 @@ export default function Dashboard({ asUser = null } = {}) {
   // below the `if (error) return ...` lines
   const navigate = useNavigate();
 
+  // ADDED: id of the telecaller whose dashboard is shown (admin view), else null
+  // UPDATED: also set by the "Telecaller" filter
+  // ORIGINAL: const asUserId = asUser ? asUser.id : null;
+  const asUserId = viewAs ? viewAs.id : null;
+
+  // ADDED: telecaller list for the "Telecaller" filter (admin only)
+  useEffect(() => {
+    if (!realIsAdmin) return;
+    api("/users").then((rows) => setTelecallers((rows || []).filter((r) => r.role === "telecaller"))).catch(() => {});
+  }, [realIsAdmin]);
+
   // ADDED: load the list of project names once for the filter dropdown
   useEffect(() => {
     // ORIGINAL: api("/dashboard/projects") - UPDATED: as a telecaller, only their projects
-    api(asUser ? `/dashboard/projects?assigned=${asUser.id}` : "/dashboard/projects")
+    api(asUserId ? `/dashboard/projects?assigned=${asUserId}` : "/dashboard/projects")
       .then((d) => setProjects(d.projects || []))
       .catch(() => {});
-  }, [asUser?.id]);
+  }, [asUserId]);
 
   useEffect(() => {
     const q = new URLSearchParams();
@@ -38,11 +70,11 @@ export default function Dashboard({ asUser = null } = {}) {
     // ADDED: pass the selected project so the returned totals are project-scoped
     if (project) q.set("project", project);
     // ADDED: telecaller view for the admin (backend returns that telecaller's dashboard)
-    if (asUser) q.set("as_user", asUser.id);
+    if (asUserId) q.set("as_user", asUserId);
     api(`/dashboard${q.toString() ? `?${q}` : ""}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [range, project, asUser?.id]);
+  }, [range, project, asUserId]);
 
   if (error) return <div className="error-msg">{error}</div>;
   if (!data) return <div className="empty">Loading dashboard...</div>;
@@ -96,11 +128,20 @@ export default function Dashboard({ asUser = null } = {}) {
   // (Walk-ins visited is admin-only, so telecallers simply skip it.)
   // UPDATED: "Walk-ins" (telecaller card) takes the same 2nd place as the admin's "Walk-ins visited"
   // ORIGINAL: const CARD_ORDER = ["Total database", "Walk-ins visited", "Quotes sent", "Follow up", "Leads"];
-  const CARD_ORDER = ["Total database", "Walk-ins visited", "Walk-ins", "Quotes sent", "Follow up", "Leads"];
-  const ORDERED_CARDS = [
+  // UPDATED order: 1. Total database, 2. Walk-ins, 3. Quotes sent, 4. Leads, 5. Follow up
+  // PREVIOUS: const CARD_ORDER = ["Total database", "Walk-ins visited", "Walk-ins", "Quotes sent", "Follow up", "Leads"];
+  const CARD_ORDER = ["Total database", "Walk-ins visited", "Walk-ins", "Quotes sent", "Leads", "Follow up"];
+  // ADDED: cards hidden from the dashboard. "Interested" is hidden because
+  // interested leads are already counted in the "Leads" card (and listed when
+  // it is clicked). The card itself is kept in CARDS above - to show it again
+  // just remove it from this list.
+  const HIDDEN_CARDS = ["Interested"];
+  // ORIGINAL ORDERED_CARDS (unchanged) - the hidden cards are filtered out after
+  const ORDERED_CARDS_ALL = [
     ...CARD_ORDER.map((label) => CARDS.find((c) => c.label === label)).filter(Boolean),
     ...CARDS.filter((c) => !CARD_ORDER.includes(c.label)),
   ];
+  const ORDERED_CARDS = ORDERED_CARDS_ALL.filter((c) => !HIDDEN_CARDS.includes(c.label));
 
   // ADDED: keeps the project filter when drilling into the Leads page from a
   // card, so the leads shown there match the (project-filtered) card number.
@@ -112,10 +153,11 @@ export default function Dashboard({ asUser = null } = {}) {
   };
   // UPDATED: in the telecaller view, card clicks also keep that telecaller
   // (assigned=<id>) so the admin sees only that telecaller's leads.
+  // UPDATED: also when a telecaller is picked in the "Telecaller" filter
   const withProject = (link) => {
     const l = withProjectOnly(link);
-    if (!asUser || !l || !l.startsWith("/leads")) return l;
-    return l + (l.includes("?") ? "&" : "?") + `assigned=${asUser.id}`;
+    if (!viewAs || !l || !l.startsWith("/leads")) return l;
+    return l + (l.includes("?") ? "&" : "?") + `assigned=${viewAs.id}`;
   };
 
   return (
@@ -128,12 +170,30 @@ export default function Dashboard({ asUser = null } = {}) {
         </>
       ) : (
       <>
+      {/* UPDATED: title row - the "Telecaller" filter sits on the right (admin) */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+      <div>
       <h1 className="page-title">Dashboard</h1>
       <p className="page-sub">
-        {user.role === "admin"
+        {/* UPDATED: names the picked telecaller when the filter is used */}
+        {selectedTc
+          ? `Showing ${selectedTc.name}'s data — exactly what ${selectedTc.name} sees on their dashboard`
+          : user.role === "admin"
           ? "Overview of all leads and telecaller performance"
           : `Your assigned leads at a glance, ${user.name}`}
       </p>
+      </div>
+      {realIsAdmin && (
+        <div className="tc-filter">
+          <label htmlFor="tc-filter">Telecaller</label>
+          <select id="tc-filter" value={tcId} onChange={(e) => { setTcId(e.target.value); setProject(""); }}>
+            <option value="">All telecallers</option>
+            {telecallers.map((tc) => <option key={tc.id} value={tc.id}>{tc.name}{tc.status && tc.status !== "active" ? ` (${tc.status})` : ""}</option>)}
+          </select>
+          {tcId && <button type="button" className="btn small secondary" onClick={() => { setTcId(""); setProject(""); }} title="Show all telecallers">✕</button>}
+        </div>
+      )}
+      </div>
       </>
       )}
 
@@ -164,6 +224,30 @@ export default function Dashboard({ asUser = null } = {}) {
         <button className="btn small secondary" onClick={() => setRange({ from: "", to: "" })}>
           Clear
         </button>
+        {/* ADDED: Export to Excel (admin's own dashboard) - cards, telecaller
+            performance and upcoming follow-ups, for the selected project / dates */}
+        {/* UPDATED: shown on the admin's dashboard also while a telecaller is picked */}
+        {/* ORIGINAL: {!asUser && user.role === "admin" && <ExportButton ... */}
+        {realIsAdmin && <ExportButton className="btn small secondary" onExport={async () => {
+          const period = [range.from && `from ${range.from}`, range.to && `to ${range.to}`].filter(Boolean).join(" ") || "All dates";
+          return downloadExcel([
+            { name: "Dashboard", rows: [
+              { "Card": "Filter - telecaller", "Value": selectedTc ? selectedTc.name : "All telecallers" },
+              { "Card": "Filter - project", "Value": project || "All projects" },
+              { "Card": "Filter - dates", "Value": period },
+              ...ORDERED_CARDS.map((c) => ({ "Card": c.label, "Value": Number(c.value || 0) })),
+            ], numberCols: ["Value"] },
+            { name: "Telecaller performance", rows: (data.performance || []).map((p) => ({
+              "Telecaller": p.name, "Status": p.status, "Leads": Number(p.total_leads || 0), "Interested": Number(p.interested || 0),
+              "Follow up": Number(p.follow_up || 0), "Not interested": Number(p.not_interested || 0),
+              "Not answered": Number(p.not_answered || 0), "Quotes": Number(p.quotes_sent || 0), "Orders": Number(p.orders_booked || 0),
+            })), numberCols: ["Leads", "Interested", "Follow up", "Not interested", "Not answered", "Quotes", "Orders"] },
+            { name: "Upcoming follow-ups", rows: (data.followups || []).map((f) => ({
+              "Lead": f.name, "Phone": f.primary_phone || "", "Next call": d10(f.next_call_date),
+              "Category": f.call_category || "Fresh", "Telecaller": f.caller_name || "Unassigned",
+            })) },
+          ], ["Dashboard", selectedTc && selectedTc.name, project].filter(Boolean).join("_"));
+        }} />}
         {(range.from || range.to) && (
           <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
             Showing data {range.from ? `from ${range.from}` : ""} {range.to ? `to ${range.to}` : ""}

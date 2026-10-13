@@ -8,8 +8,12 @@ import WalkinModal from "../components/WalkinModal.jsx";
 import ConvertWalkinModal from "../components/ConvertWalkinModal.jsx";
 // ADDED: read-only "View" pop-up for the lead cards (admin only)
 import LeadViewModal from "../components/LeadViewModal.jsx";
+// ADDED: read-only walk-in details (walk-in cards "View" button)
+import WalkinViewModal from "../components/WalkinViewModal.jsx";
 // ADDED: Excel export of the filtered leads (same library the Import page uses)
 import * as XLSX from "xlsx";
+// ADDED: pop-up after export
+import { showPopup } from "../components/Popup.jsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 
@@ -144,6 +148,34 @@ export default function Leads() {
     api("/dashboard/projects").then((d) => setProjects(d.projects || [])).catch(() => {});
   }, []);
 
+  // ADDED: walk-in cards in the "Walk-in leads" section use the same format as
+  // the Walk-ins page: View / WhatsApp / Follow up / Edit / Delete.
+  const [viewWalkin, setViewWalkin] = useState(null);
+  const walkinWaMessage = (w) =>
+    `Hello${w.name ? ` ${w.name}` : ""}, this is Deeraj Interiors. Thank you for visiting our experience centre - how can we help you further?`;
+  // Follow up: open the lead form (same as the lead cards). A walk-in that is
+  // not a lead yet is converted first (same conversion as "Convert to lead").
+  const openWalkinLead = async (leadId) => {
+    try {
+      const lead = await api(`/leads/${leadId}`);
+      setModalLead({ ...lead, walkin: lead.walkin || "Yes" });
+    } catch (e) {
+      showPopup("error", e.message, "Could not open follow up");
+    }
+  };
+  const followUpWalkin = async (w) => {
+    if (w.converted_lead_id) { openWalkinLead(w.converted_lead_id); return; }
+    try {
+      const data = await api(`/walkins/${w.id}/convert`, { method: "POST", body: JSON.stringify({ assigned_to: null }) });
+      loadWalkinLeads();
+      load();
+      if (data && data.id) openWalkinLead(data.id);
+    } catch (e) {
+      // the app pop-up already shows the reason (e.g. phone already in Data)
+      setMsg({ type: "error", text: e.message });
+    }
+  };
+
   const flash = (type, text) => {
     setMsg({ type, text });
     setTimeout(() => setMsg({ type: "", text: "" }), 3500);
@@ -204,7 +236,8 @@ export default function Leads() {
         all.push(...(d.leads || []));
         if (!d.leads || d.leads.length < per || all.length >= d.total) break;
       }
-      if (all.length === 0) { flash("error", "No leads to export"); return; }
+      // UPDATED: pop-ups added (message line kept)
+      if (all.length === 0) { flash("error", "No leads to export"); showPopup("error", "There are no leads to export with these filters.", "Nothing to export"); return; }
       const d10 = (v) => (v ? String(v).slice(0, 10) : "");
       const rows = all.map((l) => ({
         "Name": l.name || "",
@@ -218,6 +251,8 @@ export default function Leads() {
         "Call category": l.call_category || "",
         "Quote sent": l.quote_sent || "",
         "Order booked": l.order_booked || "",
+        // ADDED: Revenue booked (amount) - a real number so Excel can total it
+        "Revenue booked (₹)": l.revenue_booked === null || l.revenue_booked === undefined || l.revenue_booked === "" ? "" : Number(l.revenue_booked),
         "1st call": d10(l.first_calling_date),
         "2nd call": d10(l.second_calling_date),
         "Next call": d10(l.next_call_date),
@@ -235,7 +270,10 @@ export default function Leads() {
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       // keep phone numbers as text so Excel doesn't show 9.85E+09
-      Object.keys(ws).forEach((k) => { if (k[0] !== "!" && ws[k].t === "n") { ws[k].t = "s"; ws[k].v = String(ws[k].v); } });
+      // ORIGINAL: Object.keys(ws).forEach((k) => { if (k[0] !== "!" && ws[k].t === "n") { ws[k].t = "s"; ws[k].v = String(ws[k].v); } });
+      // UPDATED: same, but the "Revenue booked" column stays a number (so Excel can total it)
+      const revCol = XLSX.utils.encode_col(Object.keys(rows[0]).indexOf("Revenue booked (₹)"));
+      Object.keys(ws).forEach((k) => { if (k[0] !== "!" && ws[k].t === "n" && k.replace(/[0-9]+/g, "") !== revCol) { ws[k].t = "s"; ws[k].v = String(ws[k].v); } });
       ws["!cols"] = Object.keys(rows[0]).map((h) => ({ wch: /remark/i.test(h) ? 40 : Math.max(12, h.length + 2) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Leads");
@@ -243,12 +281,31 @@ export default function Leads() {
       const tag = filters.project ? filters.project.replace(/[^\w-]+/g, "_") : "All_projects";
       XLSX.writeFile(wb, `Leads_${tag}_${today}.xlsx`);
       flash("success", `Exported ${all.length} leads`);
+      showPopup("success", `${all.length} lead${all.length === 1 ? "" : "s"} exported to Excel.`, "Exported to Excel");
     } catch (e) {
       flash("error", e.message);
+      showPopup("error", e.message, "Export failed");
     } finally {
       setExporting(false);
     }
   };
+
+  // ADDED: page title from the active card filter (same names as the dashboard
+  // cards). Only one card filter at a time gets a name; otherwise "Leads".
+  const TITLE_BY_FILTER = [
+    [filters.quote === "Yes", "Quotes sent"],
+    [filters.order === "Yes", "Orders booked"],
+    [filters.due === "today", "Calls due today"],
+    [filters.walkin === "Yes", "Walk-ins"],
+    [filters.assigned === "unassigned", "Unassigned leads"],
+    [filters.category === "INTERESTED", "Interested"],
+    [filters.category === "FOLLOW UP", "Follow up"],
+    [filters.category === "NOT INTERESTED", "Not interested"],
+    [filters.category === "NOT ANSWERED", "Not answered"],
+    [filters.category === "FRESH", "Fresh (not called)"],
+  ];
+  const activeTitles = TITLE_BY_FILTER.filter(([on]) => on).map(([, t]) => t);
+  const pageTitle = filters.stage === "leads" || activeTitles.length !== 1 ? "Leads" : activeTitles[0];
 
   const pages = Math.max(1, Math.ceil(total / limit));
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
@@ -274,7 +331,10 @@ export default function Leads() {
 
   return (
     <div>
-      <h1 className="page-title">Leads</h1>
+      {/* ORIGINAL: <h1 className="page-title">Leads</h1>
+          UPDATED: the title shows the name of the dashboard card that was
+          clicked (e.g. "Quotes sent"); "Leads" when no such filter is set. */}
+      <h1 className="page-title">{pageTitle}</h1>
       <p className="page-sub">
         {isAdmin ? `All leads across the team (${total} total)` : `Leads assigned to you (${total})`}
       </p>
@@ -389,6 +449,13 @@ export default function Leads() {
                 </b>
                 {isAdmin && (<><span>Caller</span><b>{l.caller_name || <span className="chip none">Unassigned</span>}</b></>)}
                 <span>1st call</span><b>{fmt(l.first_calling_date) || "-"}</b>
+                {/* ADDED: Revenue booked (amount entered in the Follow up form) */}
+                <span>Revenue booked</span>
+                <b className={l.revenue_booked !== null && l.revenue_booked !== undefined && l.revenue_booked !== "" ? "lc-revenue" : ""}>
+                  {l.revenue_booked !== null && l.revenue_booked !== undefined && l.revenue_booked !== ""
+                    ? `₹ ${Number(l.revenue_booked).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+                    : "-"}
+                </b>
               </div>
               {/* same dropdowns as the table - changes save straight away */}
               <div className="lc-selects">
@@ -573,23 +640,30 @@ export default function Leads() {
             <div className="lead-cards" style={{ padding: 16 }}>
               {walkinLeads.length === 0 && <div className="empty">No walk-ins found.</div>}
               {walkinLeads.map((w) => (
+                // UPDATED: same card format as the Walk-ins page
+                // PREVIOUS card: phone under the name; buttons "→ Convert to lead" / Edit / Delete
                 <div className="lead-card" key={`wc${w.id}`}>
                   <div className="lc-head">
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div className="lc-name">{w.name}</div>
-                      <div className="lc-sub">{w.project_name || "No project"} · Walk-in {fmt(w.visit_date)}</div>
+                      <div className="lc-sub">
+                        {w.converted_lead_id
+                          ? <span className="chip yes" title="Already added to Data (Leads)">✓ Lead</span>
+                          : <span className="chip none">Walk-in</span>}
+                      </div>
                     </div>
-                    {w.converted_lead_id
-                      ? <span className="chip yes">✓ Lead</span>
-                      : <span className="chip none">Walk-in</span>}
+                    <button className="btn small secondary lc-view" title="View full details" onClick={() => setViewWalkin(w)}>View</button>
                   </div>
-                  <a className="wa-link lc-phone" href={`https://wa.me/${waNumber(w.phone)}`} target="_blank" rel="noreferrer">{w.phone}</a>
                   <div className="lc-grid">
-                    <span>Alt. mobile</span><b>{w.alt_phone || "-"}</b>
+                    <span>Project / villa</span><b>{w.project_name || "-"}</b>
                     <span>Purpose</span><b>{w.purpose || "-"}</b>
-                    <span>Budget</span><b>{w.budget || "-"}</b>
+                    <span>Phone number</span>
+                    <b><a className="wa-link" href={`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(walkinWaMessage(w))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{w.phone}</a></b>
+                    <span>Alt. mobile</span><b>{w.alt_phone ? <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer">{w.alt_phone}</a> : "-"}</b>
+                    <span>Visit date</span><b>{fmt(w.visit_date) || "-"}</b>
                     <span>Experience centre</span><b>{w.location || "-"}</b>
                     <span>Location</span><b>{[w.site_location, w.city].filter(Boolean).join(", ") || "-"}</b>
+                    <span>Budget</span><b>{w.budget || "-"}</b>
                     <span>Attended by</span><b>{w.attended_by || "-"}</b>
                     <span>Added by</span><b>{w.created_by_name || "-"}</b>
                   </div>
@@ -600,10 +674,13 @@ export default function Leads() {
                     </div>
                   )}
                   <div className="lc-actions">
-                    {!w.converted_lead_id && (
-                      <button className="btn small" onClick={() => setConvertWalkin(w)}>→ Convert to lead</button>
-                    )}
-                    <button className="btn small secondary" onClick={() => setModalWalkin(w)}>Edit</button>
+                    <button className="btn small wa-btn" title="Send WhatsApp message"
+                            onClick={() => window.open(`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(walkinWaMessage(w))}`, "_blank", "noopener,noreferrer")}>
+                      <WhatsAppIcon /><span style={{ marginLeft: 6 }}>WhatsApp</span>
+                    </button>
+                    <button className="btn small secondary" title={w.converted_lead_id ? "Open the lead form" : "Convert to lead and open the lead form"} onClick={() => followUpWalkin(w)}>Follow up</button>
+                    {/* REMOVED from the cards on request (Edit is still in Table view):
+                        <button className="btn small secondary" title="Edit walk-in details" onClick={() => setModalWalkin(w)}>Edit</button> */}
                     <button className="btn small danger" onClick={() => removeWalkin(w)}>Delete</button>
                   </div>
                 </div>
@@ -704,6 +781,9 @@ export default function Leads() {
         />
       )}
 
+      {/* ADDED: read-only walk-in details (walk-in cards "View") */}
+      {viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)} />}
+
       {/* ADDED: same Walk-in edit form as the Walk-ins page */}
       {modalWalkin && (
         <WalkinModal
@@ -724,7 +804,9 @@ export default function Leads() {
           telecallers={telecallers}
           isAdmin={isAdmin}
           onClose={() => setModalLead(null)}
-          onSaved={() => { setModalLead(null); load(); }}
+          // UPDATED: also refreshes the walk-in cards
+          // ORIGINAL: onSaved={() => { setModalLead(null); load(); }}
+          onSaved={() => { setModalLead(null); load(); loadWalkinLeads(); }}
         />
       )}
     </div>

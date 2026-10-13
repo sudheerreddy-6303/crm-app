@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from "react";
+// UPDATED: useCallback added (for the call-history loader)
+import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
+// ADDED: call history with admin replies (responsive)
+import CallHistory from "./CallHistory.jsx";
 
 const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
 // ADDED: project types for the new "Project type" dropdown
@@ -16,6 +19,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     project_type: lead.project_type || "",
     // ADDED: Walk-in Yes / No
     walkin: lead.walkin || "",
+    // ADDED: Revenue booked (amount in rupees)
+    revenue_booked: lead.revenue_booked === null || lead.revenue_booked === undefined ? "" : String(Number(lead.revenue_booked)),
     primary_phone: lead.primary_phone || "",
     assigned_to: lead.assigned_to || "",
     first_calling_date: fmt(lead.first_calling_date),
@@ -48,11 +53,14 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // UPDATED: loader kept in a function so the history refreshes after the
+  // admin sends / deletes a reply (same request as before)
+  const loadLogs = useCallback(() => {
     if (!isNew) {
       api(`/leads/${lead.id}/logs`).then(setLogs).catch(() => {});
     }
   }, [lead.id, isNew]);
+  useEffect(() => { loadLogs(); }, [loadLogs]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -154,6 +162,20 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
               <option value="">—</option><option>Yes</option><option>No</option>
             </select>
           </div>
+          {/* ADDED: Revenue booked (amount) - saved with the lead */}
+          <div>
+            <label>Revenue booked (₹)</label>
+            {/* UPDATED: plain text box (no up/down arrows). Only digits and one
+                decimal point can be typed; phones still show the number keypad.
+                PREVIOUS: <input type="number" min="0" step="any" ... /> */}
+            <input type="text" inputMode="decimal" autoComplete="off"
+                   value={form.revenue_booked}
+                   onChange={(e) => {
+                     const v = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
+                     set("revenue_booked", v);
+                   }}
+                   placeholder="e.g. 250000" />
+          </div>
           <div>
             <label>WhatsApp message sent on</label>
             <input type="date" value={form.whatsapp_sent_date} onChange={(e) => set("whatsapp_sent_date", e.target.value)} />
@@ -220,21 +242,11 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
         {!isNew && logs.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <h3 style={{ fontSize: 14 }}>Call history</h3>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Date</th><th>By</th><th>Category</th><th>Remark</th></tr></thead>
-                <tbody>
-                  {logs.map((g) => (
-                    <tr key={g.id}>
-                      <td>{String(g.log_date).slice(0, 10)}</td>
-                      <td>{g.user_name || "-"}</td>
-                      <td>{g.category || "-"}</td>
-                      <td className="remark">{g.remark}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* ORIGINAL: table with Date / By / Category / Remark columns.
+                UPDATED: same columns via CallHistory, plus admin replies under
+                each remark ("Reply" button for admin) and a phone-friendly
+                stacked layout. */}
+            <CallHistory leadId={lead.id} logs={logs} isAdmin={isAdmin} onChanged={loadLogs} />
           </div>
         )}
 

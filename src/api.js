@@ -10,7 +10,9 @@ const BASE = process.env.REACT_APP_API_URL || "";
 function firePopup(type, text) {
   window.dispatchEvent(new CustomEvent("crm-popup", { detail: { type, text } }));
 }
-const NO_POPUP_PATHS = ["/auth/login", "/leads/import"];
+// UPDATED: "/notifications" added - marking a notification as read is silent
+// ORIGINAL: const NO_POPUP_PATHS = ["/auth/login", "/leads/import"];
+const NO_POPUP_PATHS = ["/auth/login", "/leads/import", "/notifications"];
 
 export function getToken() {
   return localStorage.getItem("telecrm_token");

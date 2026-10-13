@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: admin "Export to Excel" (shared helper + button)
+import ExportButton from "../components/ExportButton.jsx";
+import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
 import ServiceCallModal, { SERVICE_CATEGORIES } from "../components/ServiceCallModal.jsx";
 // ADDED: Excel/CSV import modal for service calls
 import ServiceCallImportModal from "../components/ServiceCallImportModal.jsx";
@@ -104,6 +107,20 @@ export default function ServiceCalls() {
     }
   };
 
+  // ADDED: export all service calls matching the search / category filter,
+  // plus a second sheet with the per-category counts
+  const exportAll = async () => {
+    const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category }, "serviceCalls");
+    return downloadExcel([
+      { name: "Service calls", rows: rows.map((c) => ({
+        "Name": c.name || "", "Phone number": c.phone || "", "Category": c.category || "",
+        "City": c.city || "", "Location": c.location || "", "Experience": c.experience || "",
+        "Remarks": c.remarks || "", "Added by": c.created_by_name || "", "Date": d10(c.created_at),
+      })) },
+      { name: "Category counts", rows: [...stats.categories].sort((a, b) => b.count - a.count).map((c) => ({ "Category": c.category || c.name || "", "Count": Number(c.count || 0) })), numberCols: ["Count"] },
+    ], filters.category ? `Service_calls_${filters.category}` : "Service_calls");
+  };
+
   const pages = Math.max(1, Math.ceil(total / limit));
 
   // ADDED: cards sorted by count (highest first); empty categories hidden
@@ -124,6 +141,8 @@ export default function ServiceCalls() {
         {/* ADDED: Import Excel button (admin only) - opens the import modal.
             Sits next to the existing "+ Add service call" button. */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {/* ADDED: Export to Excel (admin only) */}
+          {isAdmin && <ExportButton onExport={exportAll} />}
           {isAdmin && (
             <button className="btn secondary" onClick={() => setShowImport(true)}>⬆️ Import Excel</button>
           )}
