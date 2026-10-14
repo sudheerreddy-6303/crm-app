@@ -1,7 +1,8 @@
 // ORIGINAL: import React from "react";
 // ORIGINAL: import { Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
 // UPDATED: useState / useEffect / useLocation added for the mobile menu button
-import React, { useState, useEffect } from "react";
+// UPDATED: useRef added (WhatsApp sidebar menu)
+import React, { useState, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { getUser, clearSession } from "./api.js";
 import Login from "./pages/Login.jsx";
@@ -24,6 +25,9 @@ import BusinessPartners from "./pages/BusinessPartners.jsx";
 import Popup from "./components/Popup.jsx";
 // ADDED: notifications bell (top-right corner) for telecallers
 import NotificationBell from "./components/NotificationBell.jsx";
+// ADDED: WhatsApp sidebar menu pages (Meta WhatsApp / Bulk WhatsApp)
+import WhatsAppMeta from "./pages/WhatsAppMeta.jsx";
+import WhatsAppBulk from "./pages/WhatsAppBulk.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -40,6 +44,12 @@ function Shell({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+  // ADDED: WhatsApp sub-menu - opens on hover (computer) or tap (phone),
+  // and stays open while a WhatsApp page is showing
+  const onWhatsAppPage = location.pathname.startsWith("/whatsapp");
+  const [waOpen, setWaOpen] = useState(false);
+  // true while a real mouse is over the menu (taps on phones are not "hover")
+  const waHover = useRef(false);
 
   // ADDED: Back button handler (see the button above the page content)
   const goBack = () => {
@@ -82,6 +92,22 @@ function Shell({ children }) {
           <NavLink to="/project-details">🏗️ Project Details</NavLink>
           {/* ADDED: Business Associates & Franchise button in the left sidebar */}
           <NavLink to="/business-partners">🤝 Business Associates &amp; Franchise</NavLink>
+          {/* ADDED: WhatsApp menu - hover (or tap) shows Meta WhatsApp / Bulk WhatsApp */}
+          <div
+            className={`nav-group${waOpen || onWhatsAppPage ? " open" : ""}`}
+            onPointerEnter={(e) => { if (e.pointerType === "mouse") { waHover.current = true; setWaOpen(true); } }}
+            onPointerLeave={(e) => { if (e.pointerType === "mouse") { waHover.current = false; setWaOpen(false); } }}
+          >
+            {/* tap (phone) toggles the menu; with a mouse it is already open from hover */}
+            <button type="button" className={`nav-group-btn${onWhatsAppPage ? " active" : ""}`}
+                    aria-expanded={waOpen || onWhatsAppPage} onClick={() => setWaOpen((o) => (waHover.current ? true : !o))}>
+              <span>💬 WhatsApp</span><span className="nav-caret" aria-hidden="true">▸</span>
+            </button>
+            <div className="nav-submenu">
+              <NavLink to="/whatsapp/meta">Meta WhatsApp</NavLink>
+              <NavLink to="/whatsapp/bulk">Bulk WhatsApp</NavLink>
+            </div>
+          </div>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
           {user?.role === "admin" && <NavLink to="/import">⬆️ Import</NavLink>}
         </nav>
@@ -145,6 +171,9 @@ export default function App() {
       <Route path="/project-cards" element={<Protected><ProjectCards /></Protected>} />
       {/* ADDED: route for the Business Associates & Franchise sidebar button */}
       <Route path="/business-partners" element={<Protected><BusinessPartners /></Protected>} />
+      {/* ADDED: WhatsApp sidebar menu pages */}
+      <Route path="/whatsapp/meta" element={<Protected><WhatsAppMeta /></Protected>} />
+      <Route path="/whatsapp/bulk" element={<Protected><WhatsAppBulk /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
     {/* ADDED: success / error popup after every save (see components/Popup.jsx) */}

@@ -254,6 +254,10 @@ export default function Leads() {
         // ADDED: Revenue booked (amount) - a real number so Excel can total it
         "Revenue booked (₹)": l.revenue_booked === null || l.revenue_booked === undefined || l.revenue_booked === "" ? "" : Number(l.revenue_booked),
         "1st call": d10(l.first_calling_date),
+        // ADDED: last call details (latest call history entry)
+        "Last call": lastCall(l),
+        "Last call remark": l.last_call_remark || "",
+        "Last called by": l.last_call_by || "",
         "2nd call": d10(l.second_calling_date),
         "Next call": d10(l.next_call_date),
         "Calling remark": l.calling_remark || "",
@@ -309,6 +313,18 @@ export default function Leads() {
 
   const pages = Math.max(1, Math.ceil(total / limit));
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
+  // ADDED: LAST call = latest call history entry (date + time in India time).
+  // If a lead has no call history yet, falls back to the 2nd call / 1st call date.
+  const lastCall = (l) => {
+    if (l.last_call_ts != null && l.last_call_ts !== "" && !Number.isNaN(Number(l.last_call_ts))) {
+      // same YYYY-MM-DD date style as the rest of the app, plus the time
+      const p = Object.fromEntries(new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: true,
+      }).formatToParts(new Date(Number(l.last_call_ts) * 1000)).map((x) => [x.type, x.value]));
+      return `${p.year}-${p.month}-${p.day}, ${p.hour}:${p.minute} ${String(p.dayPeriod || "").toLowerCase()}`;
+    }
+    return fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
+  };
   // ADDED: true when the card view is showing (only in the "Leads" card view)
   // ORIGINAL: const showCards = filters.stage === "leads" && viewMode === "cards";
   // UPDATED: cards also for the dashboard "Follow up" card (opened with
@@ -448,7 +464,11 @@ export default function Leads() {
                   </a>
                 </b>
                 {isAdmin && (<><span>Caller</span><b>{l.caller_name || <span className="chip none">Unassigned</span>}</b></>)}
-                <span>1st call</span><b>{fmt(l.first_calling_date) || "-"}</b>
+                {/* ORIGINAL: <span>1st call</span><b>{fmt(l.first_calling_date) || "-"}</b>
+                    UPDATED: last call details instead of the 1st call */}
+                <span>Last call</span><b>{lastCall(l) || "-"}</b>
+                {l.last_call_by && (<><span>Last called by</span><b>{l.last_call_by}</b></>)}
+                {l.last_call_remark && (<><span>Last remark</span><b className="lc-remark" title={l.last_call_remark}>{l.last_call_remark}</b></>)}
                 {/* ADDED: Revenue booked (amount entered in the Follow up form) */}
                 <span>Revenue booked</span>
                 <b className={l.revenue_booked !== null && l.revenue_booked !== undefined && l.revenue_booked !== "" ? "lc-revenue" : ""}>
@@ -513,7 +533,8 @@ export default function Leads() {
                 <th>Project</th>
                 <th>Primary phone</th>
                 {isAdmin && <th>Caller</th>}
-                <th>1st call</th>
+                {/* ORIGINAL: <th>1st call</th> */}
+                <th>Last call</th>
                 <th>Call category</th>
                 <th>Quote sent</th>
                 <th>Order booked</th>
@@ -565,7 +586,8 @@ export default function Leads() {
                     </a>
                   </td>
                   {isAdmin && <td>{l.caller_name || <span className="chip none">Unassigned</span>}</td>}
-                  <td>{fmt(l.first_calling_date) || "-"}</td>
+                  {/* ORIGINAL: <td>{fmt(l.first_calling_date) || "-"}</td> */}
+                  <td>{lastCall(l) || "-"}{l.last_call_remark && <div className="lc-remark-sm" title={l.last_call_remark}>{l.last_call_remark}</div>}</td>
                   <td>
                     <select
                       className="inline"
