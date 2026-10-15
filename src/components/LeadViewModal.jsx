@@ -49,6 +49,8 @@ export default function LeadViewModal({ lead, onClose }) {
     ["Calls", [
       ["1st call date", fmtDate(lead.first_calling_date)],
       ["2nd call date", fmtDate(lead.second_calling_date)],
+      // ADDED
+      ["3rd call date", fmtDate(lead.third_calling_date)],
       ["Call 1 remark", val(lead.call_remark_1)],
       ["Call 2 remark", val(lead.call_remark_2)],
       ["Call 3 remark", val(lead.call_remark_3)],

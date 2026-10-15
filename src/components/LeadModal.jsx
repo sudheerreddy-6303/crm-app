@@ -25,6 +25,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     assigned_to: lead.assigned_to || "",
     first_calling_date: fmt(lead.first_calling_date),
     second_calling_date: fmt(lead.second_calling_date),
+    // ADDED: 3rd calling date
+    third_calling_date: fmt(lead.third_calling_date),
     call_category: lead.call_category || "",
     quote_sent: lead.quote_sent || "",
     order_booked: lead.order_booked || "",
@@ -142,6 +144,11 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           <div>
             <label>2nd calling date</label>
             <input type="date" value={form.second_calling_date} onChange={(e) => set("second_calling_date", e.target.value)} />
+          </div>
+          {/* ADDED: 3rd calling date */}
+          <div>
+            <label>3rd calling date</label>
+            <input type="date" value={form.third_calling_date} onChange={(e) => set("third_calling_date", e.target.value)} />
           </div>
           <div>
             <label>Call category</label>

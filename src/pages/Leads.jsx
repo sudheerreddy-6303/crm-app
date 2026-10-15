@@ -259,6 +259,8 @@ export default function Leads() {
         "Last call remark": l.last_call_remark || "",
         "Last called by": l.last_call_by || "",
         "2nd call": d10(l.second_calling_date),
+        // ADDED
+        "3rd call": d10(l.third_calling_date),
         "Next call": d10(l.next_call_date),
         "Calling remark": l.calling_remark || "",
         "Call 1 remark": l.call_remark_1 || "",
@@ -323,7 +325,9 @@ export default function Leads() {
       }).formatToParts(new Date(Number(l.last_call_ts) * 1000)).map((x) => [x.type, x.value]));
       return `${p.year}-${p.month}-${p.day}, ${p.hour}:${p.minute} ${String(p.dayPeriod || "").toLowerCase()}`;
     }
-    return fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
+    // UPDATED: 3rd call date checked first, then 2nd, then 1st
+    // PREVIOUS: return fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
+    return fmt(l.third_calling_date) || fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
   };
   // ADDED: true when the card view is showing (only in the "Leads" card view)
   // ORIGINAL: const showCards = filters.stage === "leads" && viewMode === "cards";
