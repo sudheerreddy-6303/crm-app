@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+import { phoneText } from "../utils/maskPhone.js";
 
 // ADDED: "Convert to lead" pop-up for a walk-in. Opened from the Walk-ins page
 // and from the walk-in table on the Data page. Creates a lead in Data from the
@@ -58,7 +60,7 @@ export default function ConvertWalkinModal({ walkin, onClose, onConverted }) {
         </p>
 
         {row("Name", walkin.name)}
-        {row("Phone", walkin.phone)}
+        {row("Phone", phoneText(walkin.phone)) /* ORIGINAL: walkin.phone */}
         {row("Project", walkin.project_name)}
         {row("Purpose", walkin.purpose)}
         {row("Remarks", walkin.remarks)}

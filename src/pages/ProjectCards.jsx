@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 // UPDATED: getUser added (admin-only Export button)
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useClientTwoRowPaging } from "../components/Pager.jsx";
 // ADDED: admin "Export to Excel" (shared helper + button)
 import ExportButton from "../components/ExportButton.jsx";
 import { downloadExcel } from "../utils/exportExcel.js";
@@ -14,6 +16,8 @@ export default function ProjectCards() {
   const [projects, setProjects] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // ADDED: 2 rows of project cards per page + page numbers
+  const cardPaging = useClientTwoRowPaging(projects, true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,8 +50,10 @@ export default function ProjectCards() {
       ) : projects.length === 0 ? (
         <div className="empty">No projects found yet.</div>
       ) : (
-        <div className="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3">
-          {projects.map((p) => (
+        <>
+        <div className="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3" ref={cardPaging.gridRef}>
+          {/* ORIGINAL: {projects.map((p) => (  - UPDATED: only this page's cards */}
+          {cardPaging.items.map((p) => (
             <div className="col" key={p.name}>
               <div
                 className="kpi kpi-lg clickable k-blue"
@@ -76,6 +82,9 @@ export default function ProjectCards() {
             </div>
           ))}
         </div>
+        {/* ADDED: page numbers */}
+        <Pager page={cardPaging.page} pages={cardPaging.pages} total={projects.length} onPage={cardPaging.setPage} noun="projects" />
+        </>
       )}
     </div>
   );

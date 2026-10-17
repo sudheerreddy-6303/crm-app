@@ -5,6 +5,14 @@ import { useNavigate } from "react-router-dom";
 // Import page already uses for its sample file)
 import * as XLSX from "xlsx";
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useTwoRowLimit, useClientTwoRowPaging } from "../components/Pager.jsx";
+// ADDED: admin-only "Copy numbers" button
+import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+// ADDED: hide phone numbers on cards / table (xxxxxxx963)
+// UPDATED: hidden for telecallers only (admin sees full numbers)
+// PREVIOUS: import { maskPhone } from "../utils/maskPhone.js";
+import { phoneText, cardPhone } from "../utils/maskPhone.js";
 import ProjectModal, { PROJECT_TYPES, PROJECT_STATUSES } from "../components/ProjectModal.jsx";
 // ADDED: read-only "View" pop-up for the project cards
 import ProjectViewModal from "../components/ProjectViewModal.jsx";
@@ -23,11 +31,14 @@ function waNumber(rawPhone) {
   return digits;
 }
 // Render a phone value as a WhatsApp link, or "-" when empty.
-function WaCell({ value }) {
+// UPDATED: "card" prop -> number hidden for everyone (used on the cards)
+// ORIGINAL: function WaCell({ value }) {
+function WaCell({ value, card }) {
   if (!value) return "-";
   return (
     <a className="wa-link" href={`https://wa.me/${waNumber(value)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
-      {value}
+      {/* ORIGINAL: {value}  - UPDATED: only last 3 digits shown; full number in the Edit form */}
+      {card ? cardPhone(value) : phoneText(value) /* PREVIOUS: {maskPhone(value)} */}
     </a>
   );
 }
@@ -40,12 +51,14 @@ export default function ProjectDetails() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({ search: "", type: "", status: "" });
   const [page, setPage] = useState(1);
-  const limit = 50;
+  // ORIGINAL: const limit = 50;  (now: 2 rows of cards per page, 50 in Table view - see useTwoRowLimit below)
   const [modalProject, setModalProject] = useState(null);
   const [msg, setMsg] = useState({ type: "", text: "" });
   // ADDED: Cards / Table switch - cards are the default, the original table
   // is kept unchanged and shown in "Table" view.
   const [viewMode, setViewMode] = useState("cards");
+  // ADDED: Cards view shows 2 rows per page (+ page numbers); Table view 50 per page
+  const { gridRef: cardsGridRef, limit } = useTwoRowLimit(viewMode === "cards", setPage);
   // ADDED: project shown in the read-only "View" pop-up
   const [viewProject, setViewProject] = useState(null);
 
@@ -55,6 +68,8 @@ export default function ProjectDetails() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState([]);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  // ADDED: project summary cards - 2 rows per page + page numbers
+  const sumPaging = useClientTwoRowPaging(summary, true);
   useEffect(() => {
     api("/dashboard/project-summary")
       .then((d) => setSummary(d.projects || []))
@@ -70,7 +85,8 @@ export default function ProjectDetails() {
     api(`/projects?${q}`)
       .then((d) => { setProjects(d.projects); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
-  }, [page, filters]);
+  // ORIGINAL: }, [page, filters]);
+  }, [page, filters, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -158,8 +174,11 @@ export default function ProjectDetails() {
                 "Phone 1": p.phone1 || "", "Phone 2": p.phone2 || "", "Data in CRM": p.data_in_crm || "",
                 "Marketing": p.marketing || "", "Rounds called": Number(p.rounds_called || 0),
                 "Last call": d10(p.last_calling_date), "Units booked (interiors)": Number(p.units_booked_interiors || 0),
-                "Units sold": Number(p.units_sold || 0), "Added by": p.created_by_name || "", "Created": d10(p.created_at),
-              })), numberCols: ["Rounds called", "Units booked (interiors)", "Units sold"] },
+                "Units sold": Number(p.units_sold || 0),
+                // ADDED: towers / flats / data in CRM count
+                "No. of towers": Number(p.total_towers || 0), "No. of flats": Number(p.total_flats || 0), "Data in CRM (count)": Number(p.crm_data_count || 0),
+                "Added by": p.created_by_name || "", "Created": d10(p.created_at),
+              })), numberCols: ["Rounds called", "Units booked (interiors)", "Units sold", "No. of towers", "No. of flats", "Data in CRM (count)"] },
               { name: "Projects summary", rows: summary.map((p) => ({
                 "Project": p.name, "Type": p.type || "", "Location": p.location || "",
                 "Total database": Number(p.total_leads || 0), "Walk-ins": Number(p.walkins || 0),
@@ -174,6 +193,8 @@ export default function ProjectDetails() {
             {exporting ? "Exporting..." : "⬇ Export phone numbers"}
           </button>
           )}
+          {/* ADDED: copy owner / secondary / phone 1 / phone 2 numbers (admin only) */}
+          <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects")} />
           <button className="btn" onClick={() => setModalProject({})}>+ Add project</button>
         </div>
       </div>
@@ -188,8 +209,10 @@ export default function ProjectDetails() {
       ) : summary.length === 0 ? (
         <div className="empty">No projects found yet.</div>
       ) : (
-        <div className="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3" style={{ marginBottom: 22 }}>
-          {summary.map((p) => (
+        <>
+        <div className="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3" style={{ marginBottom: 22 }} ref={sumPaging.gridRef}>
+          {/* ORIGINAL: {summary.map((p) => (  - UPDATED: only this page's cards */}
+          {sumPaging.items.map((p) => (
             <div className="col" key={`ps${p.name}`}>
               <div
                 className="kpi kpi-lg clickable k-blue"
@@ -218,6 +241,11 @@ export default function ProjectDetails() {
             </div>
           ))}
         </div>
+        {/* ADDED: page numbers for the project summary cards */}
+        <div style={{ marginTop: -8, marginBottom: 22 }}>
+          <Pager page={sumPaging.page} pages={sumPaging.pages} total={summary.length} onPage={sumPaging.setPage} noun="projects" />
+        </div>
+        </>
       )}
 
       {/* ADDED: heading for the existing project details list below */}
@@ -247,7 +275,7 @@ export default function ProjectDetails() {
 
       {/* ADDED: project cards - same details and buttons as the table row */}
       {viewMode === "cards" && (
-        <div className="lead-cards">
+        <div className="lead-cards" ref={cardsGridRef}>
           {projects.length === 0 && <div className="card empty">No projects yet. Click "+ Add project" to create one.</div>}
           {projects.map((p) => (
             <div className="lead-card" key={`pc${p.id}`}>
@@ -262,17 +290,22 @@ export default function ProjectDetails() {
                 <button className="btn small secondary lc-view" title="View full details" onClick={() => setViewProject(p)}>View</button>
               </div>
               <div className="lc-grid">
-                <span>Owner contact</span><b><WaCell value={p.owner_contact} /></b>
-                <span>Secondary no.</span><b><WaCell value={p.secondary_number} /></b>
+                <span>Owner contact</span><b><WaCell value={p.owner_contact} card /></b>
+                <span>Secondary no.</span><b><WaCell value={p.secondary_number} card /></b>
                 <span>Sales executive</span><b>{p.sales_executive || "-"}</b>
-                <span>Phone 1</span><b><WaCell value={p.phone1} /></b>
-                <span>Phone 2</span><b><WaCell value={p.phone2} /></b>
+                <span>Phone 1</span><b><WaCell value={p.phone1} card /></b>
+                <span>Phone 2</span><b><WaCell value={p.phone2} card /></b>
                 <span>Data in CRM</span><b>{p.data_in_crm || "-"}</b>
                 <span>Marketing</span><b>{p.marketing || "-"}</b>
                 <span>Rounds called</span><b>{p.rounds_called ?? 0}</b>
                 <span>Last call</span><b>{fmt(p.last_calling_date) || "-"}</b>
                 <span>Units booked</span><b>{p.units_booked_interiors ?? 0}</b>
                 <span>Units sold</span><b>{p.units_sold ?? 0}</b>
+                {/* ADDED: towers / flats / data in CRM */}
+                {/* ORIGINAL labels: Towers / Flats */}
+                <span>No. of towers</span><b>{p.total_towers ?? 0}</b>
+                <span>No. of flats</span><b>{p.total_flats ?? 0}</b>
+                <span>Data in CRM (count)</span><b>{p.crm_data_count ?? 0}</b>
               </div>
               {p.address && (
                 <div className="lc-remarks"><div><span>Address:</span> {p.address}</div></div>
@@ -321,14 +354,14 @@ export default function ProjectDetails() {
               {projects.map((p) => (
                 <tr key={p.id}>
                   <td><strong>{p.project_name}</strong></td>
-                  <td><WaCell value={p.owner_contact} /></td>
-                  <td><WaCell value={p.secondary_number} /></td>
+                  <td><WaCell value={p.owner_contact} card /></td>
+                  <td><WaCell value={p.secondary_number} card /></td>
                   <td>{p.location || "-"}</td>
                   <td className="remark">{p.address || "-"}</td>
                   <td>{p.type || "-"}</td>
                   <td>{p.sales_executive || "-"}</td>
-                  <td><WaCell value={p.phone1} /></td>
-                  <td><WaCell value={p.phone2} /></td>
+                  <td><WaCell value={p.phone1} card /></td>
+                  <td><WaCell value={p.phone2} card /></td>
                   <td>{p.status || "-"}</td>
                   <td>{p.data_in_crm || "-"}</td>
                   <td>{p.marketing || "-"}</td>
@@ -350,7 +383,11 @@ export default function ProjectDetails() {
       </div>
       )}
 
-      {pages > 1 && (
+      {/* ADDED: numbered pages for the Cards view (2 rows per page) */}
+      {viewMode === "cards" && <Pager page={page} pages={pages} total={total} onPage={setPage} noun="projects" />}
+
+      {/* ORIGINAL Prev / Next - kept for the Table view */}
+      {viewMode === "table" && pages > 1 && (
         <div className="filters" style={{ marginTop: 12 }}>
           <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
           <span style={{ fontSize: 13 }}>Page {page} of {pages}</span>

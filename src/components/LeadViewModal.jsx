@@ -1,6 +1,8 @@
 // UPDATED: useCallback added (for the call-history loader)
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+import { phoneText } from "../utils/maskPhone.js";
 // ADDED: call history with admin replies (same component as the lead form)
 import CallHistory from "./CallHistory.jsx";
 
@@ -29,7 +31,7 @@ export default function LeadViewModal({ lead, onClose }) {
   const sections = [
     ["Lead", [
       ["Name", val(lead.name)],
-      ["Primary phone", val(lead.primary_phone)],
+      ["Primary phone", val(phoneText(lead.primary_phone))], // ORIGINAL: val(lead.primary_phone)
       ["Project", val(lead.project_name)],
       ["Project type", val(lead.project_type)],
       ["Priority", lead.priority && lead.priority !== "none" ? lead.priority : "-"],
@@ -38,7 +40,7 @@ export default function LeadViewModal({ lead, onClose }) {
       ["Walk-in", val(lead.walkin)],
     ]],
     ["Status", [
-      ["Call category", val(lead.call_category) === "-" ? "Fresh (not called)" : lead.call_category],
+      ["Call category", val(lead.call_category) === "-" ? "Not attempt" /* ORIGINAL: "Fresh (not called)" */ : lead.call_category],
       ["Quote sent", val(lead.quote_sent)],
       ["Order booked", val(lead.order_booked)],
       // ADDED: Revenue booked (amount)

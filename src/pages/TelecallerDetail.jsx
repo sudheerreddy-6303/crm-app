@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+// ADDED: admin-only "Copy numbers" button
+import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+import { fetchAllPages as fetchAllForCopy } from "../utils/exportExcel.js";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+import { phoneText } from "../utils/maskPhone.js";
 // ADDED: the same Dashboard the telecaller sees, shown here for the admin
 import Dashboard from "./Dashboard.jsx";
 // ADDED: admin "Export to Excel" (shared helper + button)
@@ -99,6 +104,9 @@ export default function TelecallerDetail() {
       {/* UPDATED: heading row now also has the Export button (admin-only page) */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "26px 0 10px" }}>
       <h3 style={{ margin: 0 }}>Call activity</h3>
+      {/* ADDED: copy this telecaller's lead phone numbers (admin only) */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <CopyNumbersButton className="btn small secondary" fields={["primary_phone"]} getRows={() => fetchAllForCopy("/leads", { assigned: id }, "leads")} />
       <ExportButton className="btn small secondary" onExport={async () => downloadExcel([
         { name: "Summary", rows: CARDS.map((c) => ({ "Card": c.label, "Value": Number(c.value || 0) })), numberCols: ["Value"] },
         { name: "Calls per day", rows: daily.map((d) => ({
@@ -106,7 +114,7 @@ export default function TelecallerDetail() {
           "Follow up": Number(d.follow_up || 0), "Not interested": Number(d.not_interested || 0), "Not answered": Number(d.not_answered || 0),
         })), numberCols: ["Total calls", "Interested", "Follow up", "Not interested", "Not answered"] },
         { name: "Assigned leads", rows: leads.map((l) => ({
-          "Name": l.name, "Phone": l.primary_phone || "", "1st call": d10(l.first_calling_date), "Category": l.call_category || "Fresh",
+          "Name": l.name, "Phone": l.primary_phone || "", "1st call": d10(l.first_calling_date), "Category": l.call_category || "Not attempt" /* ORIGINAL: "Fresh" */,
           "Quote": l.quote_sent || "", "Order": l.order_booked || "", "2nd call": d10(l.second_calling_date),
           "WA date": d10(l.whatsapp_sent_date), "WA category": l.whatsapp_category || "", "Remark": l.calling_remark || "",
           "Call 1 remark": l.call_remark_1 || "", "Call 2 remark": l.call_remark_2 || "", "Call 3 remark": l.call_remark_3 || "",
@@ -114,6 +122,7 @@ export default function TelecallerDetail() {
           "Next call": d10(l.next_call_date), "Last updated": d10(l.updated_at),
         })) },
       ], `Telecaller_${user.name}`)} />
+      </div>
       </div>
 
       {/* ADDED: calendar filter - pick a date range to check the data for that period */}
@@ -222,11 +231,11 @@ export default function TelecallerDetail() {
               {leads.map((l) => (
                 <tr key={l.id}>
                   <td><span className={`dot ${l.priority || "none"}`}></span><strong>{l.name}</strong></td>
-                  <td><a className="wa-link" href={`https://wa.me/91${l.primary_phone}`} target="_blank" rel="noreferrer">{l.primary_phone}</a></td>
+                  <td><a className="wa-link" href={`https://wa.me/91${l.primary_phone}`} target="_blank" rel="noreferrer">{phoneText(l.primary_phone) /* ORIGINAL: {l.primary_phone} */}</a></td>
                   <td>{fmt(l.first_calling_date)}</td>
                   <td>{l.call_category
                     ? <span className={`chip ${l.call_category.replaceAll(" ", "_")}`}>{l.call_category}</span>
-                    : <span className="chip none">Fresh</span>}</td>
+                    : <span className="chip none">Not attempt</span> /* ORIGINAL text: Fresh */}</td>
                   <td>{l.quote_sent ? <span className={`chip ${l.quote_sent.toLowerCase()}`}>{l.quote_sent}</span> : "-"}</td>
                   <td>{l.order_booked ? <span className={`chip ${l.order_booked.toLowerCase()}`}>{l.order_booked}</span> : "-"}</td>
                   <td>{fmt(l.second_calling_date)}</td>

@@ -1,4 +1,7 @@
 import React from "react";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+// UPDATED: phone numbers hidden for everyone here (cardPhone). PREVIOUS: import { phoneText } ...
+import { cardPhone } from "../utils/maskPhone.js";
 
 // ADDED: read-only "View" pop-up for a walk-in (admin only) - opened by the
 // "View" button next to the name on the walk-in cards. Shows every saved
@@ -14,7 +17,7 @@ const val = (v) => (v === null || v === undefined || String(v).trim() === "" ? "
 export default function WalkinViewModal({ walkin: w, onClose }) {
   const sections = [
     ["Customer", [
-      ["Name", val(w.name)], ["Phone number", val(w.phone)], ["Alt. mobile", val(w.alt_phone)],
+      ["Name", val(w.name)], ["Phone number", val(cardPhone(w.phone))], ["Alt. mobile", val(cardPhone(w.alt_phone))], /* PREVIOUS: phoneText */ // ORIGINAL: val(w.phone), val(w.alt_phone)
       ["Project / villa", val(w.project_name)], ["Budget", val(w.budget)],
     ]],
     ["Visit", [

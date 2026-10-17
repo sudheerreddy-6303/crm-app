@@ -1,4 +1,9 @@
 import React from "react";
+// ADDED: hide phone numbers (xxxxxxx963)
+// UPDATED: hidden for telecallers only
+// PREVIOUS: import { maskPhone } from "../utils/maskPhone.js";
+// UPDATED: phone numbers hidden for everyone here (cardPhone). PREVIOUS: import { phoneText } ...
+import { cardPhone } from "../utils/maskPhone.js";
 
 // ADDED: read-only "View" pop-up for a project. Opened by the "View" button
 // next to the project name on the Project Details cards. Shows every saved
@@ -18,8 +23,10 @@ function waNumber(rawPhone) {
   return digits;
 }
 // phone shown as a WhatsApp link, same as the cards/table
+// ORIGINAL: v ? <a ...>{v}</a> : "-";
+// UPDATED: number hidden (xxxxxxx963) like the cards; full number only in the Edit form
 const phone = (v) =>
-  v ? <a className="wa-link" href={`https://wa.me/${waNumber(v)}`} target="_blank" rel="noreferrer">{v}</a> : "-";
+  v ? <a className="wa-link" href={`https://wa.me/${waNumber(v)}`} target="_blank" rel="noreferrer">{cardPhone(v) /* PREVIOUS: {phoneText(v)} */}</a> : "-";
 
 export default function ProjectViewModal({ project: p, onClose }) {
   const sections = [
@@ -44,6 +51,10 @@ export default function ProjectViewModal({ project: p, onClose }) {
       ["Last call", fmtDate(p.last_calling_date)],
       ["Units booked (interiors)", p.units_booked_interiors ?? 0],
       ["Units sold", p.units_sold ?? 0],
+      // ADDED
+      ["No. of towers", p.total_towers ?? 0], // ORIGINAL label: How many towers
+      ["No. of flats", p.total_flats ?? 0], // ORIGINAL label: How many flats
+      ["How much data in CRM", p.crm_data_count ?? 0],
     ]],
     ["Record", [
       ["Added by", val(p.created_by_name)],

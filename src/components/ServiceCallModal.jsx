@@ -1,5 +1,37 @@
-import React, { useState } from "react";
+// ORIGINAL: import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+// ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
+import PhoneInput from "./PhoneInput.jsx";
+// ADDED: hide the number on the "already saved" card (xxxxxxx789)
+import { cardPhone } from "../utils/maskPhone.js";
+// ADDED: Interior Designer extra details (CV upload, pop-ups, Hyderabad areas)
+import { uploadCv, openCv, removeCv, CV_ACCEPT, CV_MAX_MB } from "../utils/serviceCallCv.js";
+import { showPopup } from "./Popup.jsx";
+import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
+
+// ADDED: extra section shown only when Category = "Interior Designer"
+export const DESIGNER_CATEGORY = "Interior Designer";
+export const EXP_RANGES = ["0-1", "1-2", "2-3", "3-4", "4+"];
+const d10 = (v) => (v ? String(v).slice(0, 10) : "");
+
+// ADDED: City dropdown = "Hyderabad" + all Hyderabad areas; "Other" lets you type
+// any other city (existing values like "anantapur" keep working).
+const CITY_OPTIONS = ["Hyderabad", ...HYDERABAD_AREAS];
+const CITY_OTHER = "__other__";
+// match ignoring capitals / spaces, so a saved "hyderabad" selects "Hyderabad"
+const cityMatch = (v) => CITY_OPTIONS.find((c) => c.toLowerCase() === String(v || "").trim().toLowerCase()) || "";
+const toDesigner = (c) => ({
+  exp_range: c.exp_range || "",
+  interview_attended: c.interview_attended || "",
+  current_location: c.current_location || "",
+  company_name: c.company_name || "",
+  designation: c.designation || "",
+  salary: c.salary || "",
+  followup1_date: d10(c.followup1_date), followup1_remark: c.followup1_remark || "",
+  followup2_date: d10(c.followup2_date), followup2_remark: c.followup2_remark || "",
+  followup3_date: d10(c.followup3_date), followup3_remark: c.followup3_remark || "",
+});
 
 // ADDED: Service Call add/edit modal - opened by the "+ Add service call"
 // button on the Service Calls page. Follows the same pattern as LeadModal.
@@ -14,8 +46,24 @@ export const SERVICE_CATEGORIES = [
   "Printer Repair", "Chair Repair", "Site Managers",
 ];
 
+// ADDED: form values from a saved record (used for the duplicate-number auto-fill)
+const toForm = (c, phone) => ({
+  name: c.name || "",
+  phone: phone !== undefined ? phone : c.phone || "",
+  category: c.category || "",
+  location: c.location || "",
+  city: c.city || "",
+  experience: c.experience || "",
+  remarks: c.remarks || "",
+});
+
 export default function ServiceCallModal({ call, onClose, onSaved }) {
-  const isNew = !call.id;
+  // ORIGINAL: const isNew = !call.id;
+  // UPDATED: when the typed number already exists, the form switches to
+  // editing THAT record (existing.id) - so saving updates it, no duplicate.
+  const [existing, setExisting] = useState(null);
+  const editId = call.id || (existing && existing.id) || null;
+  const isNew = !editId;
   const [form, setForm] = useState({
     name: call.name || "",
     phone: call.phone || "",
@@ -26,10 +74,77 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     experience: call.experience || "",
     remarks: call.remarks || "",
   });
+  // ADDED: checking the number while it is typed (only in "Add service call")
+  const [checking, setChecking] = useState(false);
+  const lookupSeq = useRef(0);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  // ADDED: true while "Other (type city)" is chosen in the City dropdown
+  const [cityOther, setCityOther] = useState(false);
+  const cityIsOther = cityOther || (form.city && !cityMatch(form.city));
+
+  // ADDED: Interior Designer details (kept separate from the original form fields)
+  const [designer, setDesigner] = useState(() => toDesigner(call));
+  const setD = (k, v) => setDesigner((d) => ({ ...d, [k]: v }));
+  const isDesigner = form.category === DESIGNER_CATEGORY;
+  const [cvFile, setCvFile] = useState(null);
+  const [cvName, setCvName] = useState(call.cv_name || "");
+  const pickCv = (file) => {
+    if (file && file.size > CV_MAX_MB * 1024 * 1024) {
+      showPopup("error", `This file is ${(file.size / 1048576).toFixed(1)} MB. The CV must be ${CV_MAX_MB} MB or smaller.`, "CV too big");
+      return;
+    }
+    setCvFile(file || null);
+  };
+  const viewCv = async () => {
+    try { await openCv(editId); } catch (e) { showPopup("error", e.message, "Could not open CV"); }
+  };
+  const deleteCv = async () => {
+    if (!window.confirm("Remove this CV?")) return;
+    try { await removeCv(editId); setCvName(""); showPopup("success", "The CV was removed.", "CV removed"); }
+    catch (e) { showPopup("error", e.message, "Could not remove CV"); }
+  };
+
+  // ADDED: as soon as a full number (10+ digits) is typed in a NEW service call,
+  // look it up. If it is already saved, load that record's details into the
+  // form and show a notice - saving will then update it instead of adding a copy.
+  const digits = String(form.phone || "").replace(/\D/g, "");
+  useEffect(() => {
+    if (call.id || existing || digits.length < 10) return undefined;
+    const seq = ++lookupSeq.current;
+    const t = setTimeout(async () => {
+      setChecking(true);
+      try {
+        const d = await api(`/service-calls/lookup?phone=${encodeURIComponent(digits)}`);
+        if (seq !== lookupSeq.current) return; // a newer number was typed
+        if (d.found && d.call) {
+          setExisting(d.call);
+          setForm((f) => toForm(d.call, f.phone));
+          // ADDED: load the saved Interior Designer details + CV too
+          setDesigner(toDesigner(d.call));
+          setCvName(d.call.cv_name || "");
+          setError("");
+        }
+      } catch { /* lookup is only a helper - saving still checks on the server */ }
+      finally { if (seq === lookupSeq.current) setChecking(false); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [digits, call.id, existing]);
+
+  // ADDED: "Not this person? Start again" - clears the loaded record
+  const clearExisting = () => {
+    lookupSeq.current++;
+    setExisting(null);
+    setForm(toForm({}, ""));
+    // ADDED
+    setDesigner(toDesigner({}));
+    setCvName("");
+    setCvFile(null);
+    setCityOther(false);
+    setError("");
+  };
 
   const save = async () => {
     setError("");
@@ -38,10 +153,27 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     }
     setSaving(true);
     try {
+      // ORIGINAL: if (isNew) POST ... else PUT /service-calls/${call.id}
+      // UPDATED: editId = this record, or the existing record found by number
+      // ADDED: Interior Designer details are sent only for that category
+      const body = isDesigner ? { ...form, ...designer } : form;
+      // ORIGINAL: await api("/service-calls", { method: "POST", body: JSON.stringify(form) });
+      // ORIGINAL: await api(`/service-calls/${editId}`, { method: "PUT", body: JSON.stringify(form) });
+      let savedId = editId;
       if (isNew) {
-        await api("/service-calls", { method: "POST", body: JSON.stringify(form) });
+        const d = await api("/service-calls", { method: "POST", body: JSON.stringify(body) });
+        savedId = d && d.id;
       } else {
-        await api(`/service-calls/${call.id}`, { method: "PUT", body: JSON.stringify(form) });
+        await api(`/service-calls/${editId}`, { method: "PUT", body: JSON.stringify(body) });
+      }
+      // ADDED: upload the chosen CV after the record is saved
+      if (isDesigner && cvFile && savedId) {
+        try {
+          await uploadCv(savedId, cvFile);
+          showPopup("success", `${cvFile.name} was uploaded.`, "Saved with CV");
+        } catch (e) {
+          showPopup("error", `The details were saved, but the CV could not be uploaded: ${e.message}`, "CV not uploaded");
+        }
       }
       onSaved();
     } catch (e) {
@@ -59,8 +191,44 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         {/* ADDED: "X" close button (top-right) - closes the form without saving */}
         <button type="button" className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
-        <h3>{isNew ? "Add service call" : `Edit service call — ${call.name}`}</h3>
+        {/* ORIGINAL: <h3>{isNew ? "Add service call" : `Edit service call — ${call.name}`}</h3> */}
+        <h3>{isNew ? "Add service call" : `Edit service call — ${call.name || (existing && existing.name) || ""}`}</h3>
         {error && <div className="error-msg">{error}</div>}
+        {/* ADDED: number already saved -> its details are loaded below */}
+        {existing && !call.id && (
+          <div className="sc-dup">
+            <div>
+              <b>This phone number is already saved.</b> Its details are loaded below
+              {existing.created_by_name ? ` (added by ${existing.created_by_name})` : ""}.
+              Saving will <b>update this record</b> - no duplicate will be created.
+            </div>
+            <button type="button" className="btn small secondary" onClick={clearExisting}>Not this person? Start again</button>
+          </div>
+        )}
+        {/* ADDED: the saved person shown as a card (same style as the other cards) */}
+        {existing && !call.id && (
+          <div className="lead-card sc-found-card">
+            <div className="lc-head">
+              <div>
+                <div className="lc-name">👤 {existing.name || "-"}</div>
+                <div className="lc-sub">Already in the database</div>
+              </div>
+              {existing.category && <span className="chip none">{existing.category}</span>}
+            </div>
+            <div className="lc-grid">
+              <span>Phone number</span><b>{cardPhone(existing.phone) || "-"}</b>
+              <span>City</span><b>{existing.city || "-"}</b>
+              <span>Location</span><b>{existing.location || "-"}</b>
+              <span>Experience</span><b>{existing.experience || "-"}</b>
+              <span>Added by</span><b>{existing.created_by_name || "-"}</b>
+              <span>Added on</span><b>{existing.created_at ? String(existing.created_at).slice(0, 10) : "-"}</b>
+            </div>
+            {existing.remarks && (
+              <div className="lc-remarks"><div><span>Remarks:</span> {existing.remarks}</div></div>
+            )}
+          </div>
+        )}
+        {checking && !existing && <div className="sc-checking">Checking number…</div>}
 
         <div className="form-grid">
           <div>
@@ -69,7 +237,8 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           </div>
           <div>
             <label>Phone number</label>
-            <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
+            {/* ORIGINAL: <input value={form.phone} ... placeholder="Phone number" /> */}
+            <PhoneInput value={form.phone} original={call.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
           </div>
           <div>
             <label>Category</label>
@@ -80,7 +249,22 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           </div>
           <div>
             <label>City</label>
-            <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+            {/* ORIGINAL: <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+                UPDATED: Hyderabad areas dropdown + "Other" to type any city */}
+            <select
+              value={cityIsOther ? CITY_OTHER : cityMatch(form.city)}
+              onChange={(e) => {
+                if (e.target.value === CITY_OTHER) { setCityOther(true); if (cityMatch(form.city)) set("city", ""); }
+                else { setCityOther(false); set("city", e.target.value); }
+              }}
+            >
+              <option value="">Select city / area</option>
+              {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              <option value={CITY_OTHER}>Other (type city)</option>
+            </select>
+            {cityIsOther && (
+              <input style={{ marginTop: 8 }} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Type city" autoFocus={cityOther && !form.city} />
+            )}
           </div>
           <div>
             <label>Location</label>
@@ -95,6 +279,73 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
             <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
           </div>
         </div>
+
+        {/* ADDED: Interior Designer details - only when Category = Interior Designer */}
+        {isDesigner && (
+          <div className="sc-designer">
+            <div className="sc-designer-title">🎨 Interior Designer details</div>
+            <div className="form-grid">
+              <div>
+                <label>Experience (years)</label>
+                <select value={designer.exp_range} onChange={(e) => setD("exp_range", e.target.value)}>
+                  <option value="">Select experience</option>
+                  {EXP_RANGES.map((x) => <option key={x} value={x}>{x} years</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Attended interview?</label>
+                <select value={designer.interview_attended} onChange={(e) => setD("interview_attended", e.target.value)}>
+                  <option value="">—</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              <div>
+                <label>Currently working location</label>
+                <input list="sc-hyd-areas" value={designer.current_location} onChange={(e) => setD("current_location", e.target.value)} placeholder="Area / city" />
+                <datalist id="sc-hyd-areas">
+                  {HYDERABAD_AREAS.map((a) => <option key={a} value={a} />)}
+                </datalist>
+              </div>
+              <div>
+                <label>Company name</label>
+                <input value={designer.company_name} onChange={(e) => setD("company_name", e.target.value)} placeholder="Current company" />
+              </div>
+              <div>
+                <label>Designation</label>
+                <input value={designer.designation} onChange={(e) => setD("designation", e.target.value)} placeholder="e.g. Junior Designer" />
+              </div>
+              <div>
+                <label>Salary (₹)</label>
+                <input value={designer.salary} onChange={(e) => setD("salary", e.target.value)} placeholder="e.g. 25000 per month" />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label>Attach CV (PDF, Word, JPG or PNG - max {CV_MAX_MB} MB)</label>
+                {cvName && !cvFile && (
+                  <div className="sc-cv-row">
+                    <span>📄 {cvName}</span>
+                    <button type="button" className="btn small secondary" onClick={viewCv}>View CV</button>
+                    <button type="button" className="btn small danger" onClick={deleteCv}>Remove</button>
+                  </div>
+                )}
+                <input type="file" accept={CV_ACCEPT} onChange={(e) => pickCv(e.target.files && e.target.files[0])} />
+                {cvFile && <div className="sc-cv-note">📎 {cvFile.name} will be uploaded when you save{cvName ? " (replaces the current CV)" : ""}.</div>}
+              </div>
+              {[1, 2, 3].map((n) => (
+                <React.Fragment key={n}>
+                  <div>
+                    <label>Follow-up {n} date</label>
+                    <input type="date" value={designer[`followup${n}_date`]} onChange={(e) => setD(`followup${n}_date`, e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Follow-up {n} remark</label>
+                    <input value={designer[`followup${n}_remark`]} onChange={(e) => setD(`followup${n}_remark`, e.target.value)} placeholder={`What happened in follow-up ${n}?`} />
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="actions">
           <button className="btn secondary" onClick={onClose}>Cancel</button>

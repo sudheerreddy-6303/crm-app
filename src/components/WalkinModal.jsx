@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
+// ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
+import PhoneInput from "./PhoneInput.jsx";
 
 // ADDED: Walk-in add/edit modal - opened by the "+ Add walk-in" button on the
 // Walk-ins page. Follows the same pattern as ServiceCallModal.
@@ -72,12 +74,14 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
           </div>
           <div>
             <label>Phone number</label>
-            <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
+            {/* ORIGINAL: <input value={form.phone} ... placeholder="Phone number" /> */}
+            <PhoneInput value={form.phone} original={walkin.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
           </div>
           {/* ADDED: alternate mobile number */}
           <div>
             <label>Alternate mobile number</label>
-            <input value={form.alt_phone} onChange={(e) => set("alt_phone", e.target.value)} placeholder="Alternate mobile number" />
+            {/* ORIGINAL: <input value={form.alt_phone} ... placeholder="Alternate mobile number" /> */}
+            <PhoneInput value={form.alt_phone} original={walkin.alt_phone} onChange={(e) => set("alt_phone", e.target.value)} placeholder="Alternate mobile number" />
           </div>
           {/* ADDED: project name / villa name */}
           <div>

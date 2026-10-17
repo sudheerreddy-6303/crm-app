@@ -1,6 +1,8 @@
 // UPDATED: useCallback added (for the call-history loader)
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
+// ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
+import PhoneInput from "./PhoneInput.jsx";
 // ADDED: call history with admin replies (responsive)
 import CallHistory from "./CallHistory.jsx";
 
@@ -126,7 +128,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           </div>
           <div>
             <label>Primary phone</label>
-            <input value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} disabled={!canEditBasics} />
+            {/* ORIGINAL: <input value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} disabled={!canEditBasics} /> */}
+            <PhoneInput value={form.primary_phone} original={lead.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} disabled={!canEditBasics} />
           </div>
           {isAdmin && (
             <div>

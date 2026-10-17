@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useClientTwoRowPaging } from "./Pager.jsx";
 // admin-only "Export to Excel" (same shared helper as the other pages)
 import ExportButton from "./ExportButton.jsx";
 import { downloadExcel } from "../utils/exportExcel.js";
@@ -68,6 +70,8 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
     if (dateTo && r.send_date > dateTo) return false;
     return true;
   });
+  // ADDED: history cards - 2 rows per page + page numbers
+  const histPaging = useClientTwoRowPaging(shown, true);
   const anyFilter = Boolean(tcFilter || projectFilter || statusFilter || dateFrom || dateTo);
   const clearFilters = () => { setTcFilter(""); setProjectFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); };
   const exportRows = () => downloadExcel([{
@@ -146,9 +150,11 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
       ) : shown.length === 0 ? (
         <div className="empty">No requests match these filters.</div>
       ) : (
-        <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+        <>
+        <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" ref={histPaging.gridRef}>
           {/* ORIGINAL: {rows.map((r) => { */}
-          {shown.map((r) => {
+          {/* PREVIOUS: {shown.map((r) => {  - UPDATED: only this page's cards */}
+          {histPaging.items.map((r) => {
             const upcoming = r.send_date >= today;
             return (
               <div className="col" key={r.id}>
@@ -171,6 +177,9 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
             );
           })}
         </div>
+        {/* ADDED: page numbers */}
+        <Pager page={histPaging.page} pages={histPaging.pages} total={shown.length} onPage={histPaging.setPage} noun="requests" />
+        </>
       )}
     </div>
   );

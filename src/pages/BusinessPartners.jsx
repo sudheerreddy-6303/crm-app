@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useTwoRowLimit } from "../components/Pager.jsx";
+// ADDED: hide phone numbers on cards / table (xxxxxxx963)
+// UPDATED: hidden for telecallers only (admin sees full numbers)
+// PREVIOUS: import { maskPhone } from "../utils/maskPhone.js";
+import { phoneText, cardPhone } from "../utils/maskPhone.js";
 import BusinessPartnerModal, { PARTNER_CATEGORIES } from "../components/BusinessPartnerModal.jsx";
 // ADDED: app-wide pop-up, shown after "Copy numbers"
 import { showPopup } from "../components/Popup.jsx";
@@ -27,12 +33,14 @@ export default function BusinessPartners() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({ search: "", category: "" });
   const [page, setPage] = useState(1);
-  const limit = 50;
+  // ORIGINAL: const limit = 50;  (now: 2 rows of cards per page, 50 in Table view - see useTwoRowLimit below)
   const [modalPartner, setModalPartner] = useState(null);
   const [msg, setMsg] = useState({ type: "", text: "" });
   // ADDED: Cards / Table switch - cards are the default, the original table
   // is kept unchanged and shown in "Table" view.
   const [viewMode, setViewMode] = useState("cards");
+  // ADDED: Cards view shows 2 rows per page (+ page numbers); Table view 50 per page
+  const { gridRef: cardsGridRef, limit } = useTwoRowLimit(viewMode === "cards", setPage);
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ page, limit });
@@ -41,7 +49,8 @@ export default function BusinessPartners() {
     api(`/business-partners?${q}`)
       .then((d) => { setPartners(d.partners); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
-  }, [page, filters]);
+  // ORIGINAL: }, [page, filters]);
+  }, [page, filters, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -122,10 +131,13 @@ export default function BusinessPartners() {
   const pages = Math.max(1, Math.ceil(total / limit));
   // ADDED: date display helper (YYYY-MM-DD)
   const fmt = (d) => (d ? String(d).slice(0, 10) : "");
-  const waLink = (num) =>
+  // UPDATED: 2nd argument "card" = true on cards -> number hidden for everyone
+  // ORIGINAL: const waLink = (num) =>
+  const waLink = (num, card) =>
     num ? (
       <a className="wa-link" href={`https://wa.me/${waNumber(num)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
-        {num}
+        {/* ORIGINAL: {num}  - UPDATED: only last 3 digits shown; full number in the Edit form */}
+        {card ? cardPhone(num) : phoneText(num) /* PREVIOUS: {maskPhone(num)} */}
       </a>
     ) : "-";
 
@@ -152,10 +164,14 @@ export default function BusinessPartners() {
               "Added by": p.created_by_name || "", "Created": d10(p.created_at),
             })) }], filters.category ? `Business_associates_${filters.category}` : "Business_associates");
           }} />}
+          {/* UPDATED: admin only - telecallers must not see full numbers
+              ORIGINAL: same button, shown to everyone */}
+          {isAdmin && (
           <button className="btn secondary" onClick={copyNumbers} disabled={copying}
                   title="Copy all contact and WhatsApp numbers (matching the search / category)">
             {copying ? "Copying..." : "📋 Copy numbers"}
           </button>
+          )}
           <button className="btn" onClick={() => setModalPartner({})}>+ Add</button>
         </div>
       </div>
@@ -182,7 +198,7 @@ export default function BusinessPartners() {
 
       {/* ADDED: one card per record - same details and buttons as the table row */}
       {viewMode === "cards" && (
-        <div className="lead-cards">
+        <div className="lead-cards" ref={cardsGridRef}>
           {partners.length === 0 && <div className="card empty">No records yet. Click "+ Add" to create one.</div>}
           {partners.map((p) => (
             <div className="lead-card" key={`bc${p.id}`}>
@@ -194,10 +210,10 @@ export default function BusinessPartners() {
                 {p.category && <span className="chip none">{p.category}</span>}
               </div>
               <div className="lc-grid">
-                <span>Contact number</span><b>{waLink(p.contact)}</b>
+                <span>Contact number</span><b>{waLink(p.contact, true) /* ORIGINAL: waLink(p.contact) */}</b>
                 {/* ADDED: owner's name */}
                 <span>Owner name</span><b>{p.owner_name || "-"}</b>
-                <span>WhatsApp</span><b>{waLink(p.whatsapp)}</b>
+                <span>WhatsApp</span><b>{waLink(p.whatsapp, true) /* ORIGINAL: waLink(p.whatsapp) */}</b>
                 <span>Call 1 date</span><b>{fmt(p.calling_date) || "-"}</b>
                 <span>Call 2 date</span><b>{fmt(p.calling_date_2) || "-"}</b>
                 <span>WhatsApp 1 date</span><b>{fmt(p.whatsapp_sent_date) || "-"}</b>
@@ -255,12 +271,12 @@ export default function BusinessPartners() {
               {partners.map((p) => (
                 <tr key={p.id}>
                   <td>{p.person_name}</td>
-                  <td>{waLink(p.contact)}</td>
+                  <td>{waLink(p.contact, true) /* ORIGINAL: waLink(p.contact) */}</td>
                   {/* ADDED: owner's name */}
                   <td>{p.owner_name || "-"}</td>
                   <td>{p.business_name || "-"}</td>
                   <td>{p.location || "-"}</td>
-                  <td>{waLink(p.whatsapp)}</td>
+                  <td>{waLink(p.whatsapp, true) /* ORIGINAL: waLink(p.whatsapp) */}</td>
                   <td>{p.category || "-"}</td>
                   {/* ADDED: calling date + WhatsApp sent date */}
                   <td>{fmt(p.calling_date) || "-"}</td>
@@ -286,7 +302,11 @@ export default function BusinessPartners() {
       </div>
       )}
 
-      {pages > 1 && (
+      {/* ADDED: numbered pages for the Cards view (2 rows per page) */}
+      {viewMode === "cards" && <Pager page={page} pages={pages} total={total} onPage={setPage} noun="records" />}
+
+      {/* ORIGINAL Prev / Next - kept for the Table view */}
+      {viewMode === "table" && pages > 1 && (
         <div className="filters" style={{ marginTop: 12 }}>
           <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
           <span style={{ fontSize: 13 }}>Page {page} of {pages}</span>

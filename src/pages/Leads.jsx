@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useTwoRowLimit, useClientTwoRowPaging } from "../components/Pager.jsx";
+// ADDED: admin-only "Copy numbers" button (+ loads every page of results)
+import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+import { fetchAllPages as fetchAllForCopy } from "../utils/exportExcel.js";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+import { phoneText, cardPhone } from "../utils/maskPhone.js";
 import LeadModal from "../components/LeadModal.jsx";
 // ADDED: same Walk-in form as the Walk-ins page, for the walk-in leads table
 import WalkinModal from "../components/WalkinModal.jsx";
@@ -63,7 +70,7 @@ export default function Leads() {
   const [leads, setLeads] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const limit = 50;
+  // ORIGINAL: const limit = 50;  (now: 2 rows of cards per page, 50 in table view - see useTwoRowLimit)
   const [telecallers, setTelecallers] = useState([]);
   // ORIGINAL: const [filters, setFilters] = useState({ search: "", category: "", assigned: "", quote: "", order: "" });
   // EXTENDED: filters now initialise from the URL query string, so clicking a
@@ -96,6 +103,27 @@ export default function Leads() {
   // ADDED: card view for the dashboard "Leads" card (stage=leads). Cards are the
   // default there; the Cards / Table switch shows the original tables again.
   const [viewMode, setViewMode] = useState("cards");
+  // ADDED: true when the card view is showing (only in the "Leads" card view)
+  // ORIGINAL: const showCards = filters.stage === "leads" && viewMode === "cards";
+  // UPDATED: cards also for the dashboard "Follow up" card (opened with
+  // ?category=FOLLOW UP). If the category filter is changed on the page, the
+  // normal table comes back.
+  const fromFollowUpCard = searchParams.get("category") === "FOLLOW UP";
+  // ORIGINAL: const cardsAllowed = filters.stage === "leads" || (fromFollowUpCard && filters.category === "FOLLOW UP");
+  // UPDATED: cards also for the dashboard "Interested" card (opened with
+  // ?category=INTERESTED). Same Cards / Table switch; the table is unchanged.
+  const fromInterestedCard = searchParams.get("category") === "INTERESTED";
+  const cardsAllowed = filters.stage === "leads"
+    || (fromFollowUpCard && filters.category === "FOLLOW UP")
+    || (fromInterestedCard && filters.category === "INTERESTED")
+    // ADDED: cards also for the dashboard "Quotes sent" card (opened with
+    // ?quote=Yes). If the Quote sent filter is changed, the table comes back.
+    || (searchParams.get("quote") === "Yes" && filters.quote === "Yes")
+    // ADDED: cards also for the telecaller "Walk-ins" card (?walkin=Yes)
+    || (filters.walkin === "Yes");
+  const showCards = cardsAllowed && viewMode === "cards";
+  // ADDED: Cards view shows 2 rows per page (+ page numbers); tables keep 50 per page
+  const { gridRef: cardsGridRef, limit } = useTwoRowLimit(showCards, setPage);
 
   const load = useCallback(async () => {
     try {
@@ -107,7 +135,8 @@ export default function Leads() {
     } catch (e) {
       setMsg({ type: "error", text: e.message });
     }
-  }, [filters, page]);
+  // ORIGINAL: }, [filters, page]);
+  }, [filters, page, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -131,6 +160,8 @@ export default function Leads() {
     api(`/dashboard/walkin-leads${q}`).then((d) => setWalkinLeads(d.walkins || [])).catch(() => setWalkinLeads([]));
   }, [isAdmin, filters.stage, filters.project]);
   useEffect(() => { loadWalkinLeads(); }, [loadWalkinLeads]);
+  // ADDED: Walk-in leads cards - 2 rows per page + page numbers (list is already loaded)
+  const wlPaging = useClientTwoRowPaging(walkinLeads, showCards);
   const removeWalkin = async (w) => {
     if (!window.confirm(`Delete walk-in for "${w.name}"?`)) return;
     try {
@@ -308,7 +339,10 @@ export default function Leads() {
     [filters.category === "FOLLOW UP", "Follow up"],
     [filters.category === "NOT INTERESTED", "Not interested"],
     [filters.category === "NOT ANSWERED", "Not answered"],
-    [filters.category === "FRESH", "Fresh (not called)"],
+    // ORIGINAL title: "Fresh (not called)"
+    [filters.category === "FRESH", "Not attempt"],
+    // ADDED
+    [filters.category === "NI_NA", "Not interested + Not answered"],
   ];
   const activeTitles = TITLE_BY_FILTER.filter(([on]) => on).map(([, t]) => t);
   const pageTitle = filters.stage === "leads" || activeTitles.length !== 1 ? "Leads" : activeTitles[0];
@@ -329,25 +363,8 @@ export default function Leads() {
     // PREVIOUS: return fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
     return fmt(l.third_calling_date) || fmt(l.second_calling_date) || fmt(l.first_calling_date) || "";
   };
-  // ADDED: true when the card view is showing (only in the "Leads" card view)
-  // ORIGINAL: const showCards = filters.stage === "leads" && viewMode === "cards";
-  // UPDATED: cards also for the dashboard "Follow up" card (opened with
-  // ?category=FOLLOW UP). If the category filter is changed on the page, the
-  // normal table comes back.
-  const fromFollowUpCard = searchParams.get("category") === "FOLLOW UP";
-  // ORIGINAL: const cardsAllowed = filters.stage === "leads" || (fromFollowUpCard && filters.category === "FOLLOW UP");
-  // UPDATED: cards also for the dashboard "Interested" card (opened with
-  // ?category=INTERESTED). Same Cards / Table switch; the table is unchanged.
-  const fromInterestedCard = searchParams.get("category") === "INTERESTED";
-  const cardsAllowed = filters.stage === "leads"
-    || (fromFollowUpCard && filters.category === "FOLLOW UP")
-    || (fromInterestedCard && filters.category === "INTERESTED")
-    // ADDED: cards also for the dashboard "Quotes sent" card (opened with
-    // ?quote=Yes). If the Quote sent filter is changed, the table comes back.
-    || (searchParams.get("quote") === "Yes" && filters.quote === "Yes")
-    // ADDED: cards also for the telecaller "Walk-ins" card (?walkin=Yes)
-    || (filters.walkin === "Yes");
-  const showCards = cardsAllowed && viewMode === "cards";
+  // MOVED: the showCards logic (unchanged) is now just after viewMode near the top,
+  // because the cards page size (2 rows per page) needs it before the leads are loaded.
 
   return (
     <div>
@@ -372,7 +389,10 @@ export default function Leads() {
           <option value="">Categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           {/* ADDED: matches the "Fresh (not called)" dashboard card */}
-          <option value="FRESH">FRESH (NOT CALLED)</option>
+          {/* ORIGINAL text: FRESH (NOT CALLED) - same value, new name */}
+          <option value="FRESH">NOT ATTEMPT</option>
+          {/* ADDED: matches the "Not interested + Not answered" dashboard card */}
+          <option value="NI_NA">NOT INTERESTED + NOT ANSWERED</option>
         </select>
         <select value={filters.quote} onChange={(e) => { setPage(1); setFilters({ ...filters, quote: e.target.value }); }}>
           <option value="">Quote sent?</option><option>Yes</option><option>No</option>
@@ -426,6 +446,8 @@ export default function Leads() {
             {exporting ? "Exporting..." : `⬇ Export${filters.project ? ` ${filters.project}` : ""} (${total})`}
           </button>
         )}
+        {/* ADDED: copy the filtered leads' phone numbers (admin only) */}
+        <CopyNumbersButton fields={["primary_phone"]} getRows={() => fetchAllForCopy("/leads", filters, "leads")} />
       </div>
 
       {isAdmin && (
@@ -441,7 +463,7 @@ export default function Leads() {
 
       {/* ADDED: lead cards (shown instead of the table in the "Leads" card view) */}
       {showCards && (
-        <div className="lead-cards">
+        <div className="lead-cards" ref={cardsGridRef}>
           {leads.length === 0 && <div className="card empty">No leads found.</div>}
           {leads.map((l) => (
             // UPDATED: card shows only the same details as the table columns -
@@ -464,7 +486,9 @@ export default function Leads() {
                 <span>Primary phone</span>
                 <b>
                   <a className="wa-link" href={`https://wa.me/${waNumber(l.primary_phone)}?text=${encodeURIComponent(waMessage(l))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
-                    {l.primary_phone}
+                    {/* ORIGINAL: {l.primary_phone} */}
+                    {/* UPDATED: cards hide the number for everyone. PREVIOUS: {phoneText(l.primary_phone)} */}
+                    {cardPhone(l.primary_phone)}
                   </a>
                 </b>
                 {isAdmin && (<><span>Caller</span><b>{l.caller_name || <span className="chip none">Unassigned</span>}</b></>)}
@@ -586,7 +610,8 @@ export default function Leads() {
                       rel="noreferrer"
                       title="Open WhatsApp chat"
                     >
-                      {l.primary_phone}
+                      {/* ORIGINAL: {l.primary_phone} */}
+                      {phoneText(l.primary_phone)}
                     </a>
                   </td>
                   {isAdmin && <td>{l.caller_name || <span className="chip none">Unassigned</span>}</td>}
@@ -648,11 +673,17 @@ export default function Leads() {
       </div>
       )}
 
+      {/* ADDED: numbered pages for the cards (2 rows per page) */}
+      {showCards && <Pager page={page} pages={pages} total={total} onPage={setPage} noun="leads" />}
+
+      {/* ORIGINAL Previous / Next - kept for the table view */}
+      {!showCards && (
       <div className="pagination">
         <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
         <span>Page {page} of {pages}</span>
         <button className="btn small secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</button>
       </div>
+      )}
 
       {/* ADDED: walk-ins counted in the dashboard "Leads" card - read-only list.
           Edit walk-ins from the Walk-ins page as before. */}
@@ -663,9 +694,11 @@ export default function Leads() {
           </div>
           {/* ADDED: walk-in cards (shown instead of the table in "Cards" view) */}
           {showCards && (
-            <div className="lead-cards" style={{ padding: 16 }}>
+            <>
+            <div className="lead-cards" style={{ padding: 16 }} ref={wlPaging.gridRef}>
               {walkinLeads.length === 0 && <div className="empty">No walk-ins found.</div>}
-              {walkinLeads.map((w) => (
+              {/* ORIGINAL: {walkinLeads.map((w) => (  - UPDATED: only this page's cards */}
+              {wlPaging.items.map((w) => (
                 // UPDATED: same card format as the Walk-ins page
                 // PREVIOUS card: phone under the name; buttons "→ Convert to lead" / Edit / Delete
                 <div className="lead-card" key={`wc${w.id}`}>
@@ -684,8 +717,8 @@ export default function Leads() {
                     <span>Project / villa</span><b>{w.project_name || "-"}</b>
                     <span>Purpose</span><b>{w.purpose || "-"}</b>
                     <span>Phone number</span>
-                    <b><a className="wa-link" href={`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(walkinWaMessage(w))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{w.phone}</a></b>
-                    <span>Alt. mobile</span><b>{w.alt_phone ? <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer">{w.alt_phone}</a> : "-"}</b>
+                    <b><a className="wa-link" href={`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(walkinWaMessage(w))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{cardPhone(w.phone) /* ORIGINAL: {w.phone} - PREVIOUS: phoneText */}</a></b>
+                    <span>Alt. mobile</span><b>{w.alt_phone ? <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer">{cardPhone(w.alt_phone) /* ORIGINAL: {w.alt_phone} - PREVIOUS: phoneText */}</a> : "-"}</b>
                     <span>Visit date</span><b>{fmt(w.visit_date) || "-"}</b>
                     <span>Experience centre</span><b>{w.location || "-"}</b>
                     <span>Location</span><b>{[w.site_location, w.city].filter(Boolean).join(", ") || "-"}</b>
@@ -712,6 +745,11 @@ export default function Leads() {
                 </div>
               ))}
             </div>
+            {/* ADDED: page numbers for the walk-in leads cards */}
+            <div style={{ padding: "0 16px 16px" }}>
+              <Pager page={wlPaging.page} pages={wlPaging.pages} total={walkinLeads.length} onPage={wlPaging.setPage} noun="walk-ins" />
+            </div>
+            </>
           )}
           {/* UPDATED: same columns and layout as the Walk-ins page
               (ORIGINAL table kept - shown in "Table" view) */}
@@ -752,13 +790,13 @@ export default function Leads() {
                         rel="noreferrer"
                         title="Open WhatsApp chat"
                       >
-                        {w.phone}
+                        {cardPhone(w.phone) /* ORIGINAL: {w.phone} - PREVIOUS: phoneText (walk-in table: hidden for everyone) */}
                       </a>
                     </td>
                     <td>
                       {w.alt_phone ? (
                         <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
-                          {w.alt_phone}
+                          {cardPhone(w.alt_phone) /* ORIGINAL: {w.alt_phone} - PREVIOUS: phoneText */}
                         </a>
                       ) : "-"}
                     </td>

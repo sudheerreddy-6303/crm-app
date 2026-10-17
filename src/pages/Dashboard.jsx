@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, getUser } from "../api.js";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+import { phoneText } from "../utils/maskPhone.js";
 // ADDED: admin "Export to Excel" (shared helper + button)
 import ExportButton from "../components/ExportButton.jsx";
 import { downloadExcel, d10 } from "../utils/exportExcel.js";
@@ -100,7 +102,10 @@ export default function Dashboard({ asUser = null } = {}) {
     { label: "Follow up", value: t.follow_up, cls: "k-blue", link: "/leads?category=FOLLOW UP" },
     { label: "Not interested", value: t.not_interested, cls: "k-red", link: "/leads?category=NOT INTERESTED" },
     { label: "Not answered", value: t.not_answered, cls: "k-amber", link: "/leads?category=NOT ANSWERED" },
-    { label: "Fresh (not called)", value: t.fresh, cls: "", link: "/leads?category=FRESH" },
+    // ADDED: Not interested + Not answered (total of the two cards above)
+    { label: "Not interested + Not answered", value: Number(t.not_interested || 0) + Number(t.not_answered || 0), cls: "k-red", link: "/leads?category=NI_NA" },
+    // ORIGINAL label: "Fresh (not called)"  - UPDATED name: "Not attempt" (same count, same link)
+    { label: "Not attempt", value: t.fresh, cls: "", link: "/leads?category=FRESH" },
     { label: "Quotes sent", value: t.quotes_sent, cls: "k-blue", link: "/leads?quote=Yes" },
     { label: "Orders booked", value: t.orders_booked, cls: "k-green", link: "/leads?order=Yes" },
     { label: "Calls due today", value: t.due_today, cls: "k-amber", link: "/leads?due=today" },
@@ -244,7 +249,7 @@ export default function Dashboard({ asUser = null } = {}) {
             })), numberCols: ["Leads", "Interested", "Follow up", "Not interested", "Not answered", "Quotes", "Orders"] },
             { name: "Upcoming follow-ups", rows: (data.followups || []).map((f) => ({
               "Lead": f.name, "Phone": f.primary_phone || "", "Next call": d10(f.next_call_date),
-              "Category": f.call_category || "Fresh", "Telecaller": f.caller_name || "Unassigned",
+              "Category": f.call_category || "Not attempt" /* ORIGINAL: "Fresh" */, "Telecaller": f.caller_name || "Unassigned",
             })) },
           ], ["Dashboard", selectedTc && selectedTc.name, project].filter(Boolean).join("_"));
         }} />}
@@ -324,9 +329,9 @@ export default function Dashboard({ asUser = null } = {}) {
               {data.followups.map((f) => (
                 <tr key={f.id}>
                   <td><strong>{f.name}</strong></td>
-                  <td><a className="wa-link" href={`https://wa.me/91${f.primary_phone}`} target="_blank" rel="noreferrer">{f.primary_phone}</a></td>
+                  <td><a className="wa-link" href={`https://wa.me/91${f.primary_phone}`} target="_blank" rel="noreferrer">{phoneText(f.primary_phone) /* ORIGINAL: {f.primary_phone} */}</a></td>
                   <td>{f.next_call_date ? String(f.next_call_date).slice(0, 10) : "-"}</td>
-                  <td>{f.call_category ? <span className={`chip ${f.call_category.replaceAll(" ", "_")}`}>{f.call_category}</span> : <span className="chip none">Fresh</span>}</td>
+                  <td>{f.call_category ? <span className={`chip ${f.call_category.replaceAll(" ", "_")}`}>{f.call_category}</span> : <span className="chip none">Not attempt</span> /* ORIGINAL text: Fresh */}</td>
                   {user.role === "admin" && <td>{f.caller_name || "Unassigned"}</td>}
                 </tr>
               ))}

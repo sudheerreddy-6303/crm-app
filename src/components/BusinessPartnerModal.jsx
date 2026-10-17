@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
+// ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
+import PhoneInput from "./PhoneInput.jsx";
 // ADDED: pop-up when a required field is missing
 import { showPopup } from "./Popup.jsx";
+// ADDED: Hyderabad areas for the Location dropdown
+import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
+const OTHER_LOCATION = "__other__";
 
 // ADDED: Business Associates & Franchise add/edit modal - opened by the "+ Add"
 // button on the Business Associates & Franchise page. Same pattern as WalkinModal.
@@ -11,10 +16,14 @@ export const PARTNER_CATEGORIES = [
   "Business Associates", "Builders", "Contractors", "Franchise Prospect",
   // ADDED: new category
   "Sales",
+  // ADDED: more categories
+  "Freelance Interiors", "Architects", "Others",
 ];
 
 export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
   const isNew = !partner.id;
+  // ADDED: true while "Other (type location)" is chosen in the Location dropdown
+  const [locOther, setLocOther] = useState(false);
   const [form, setForm] = useState({
     person_name: partner.person_name || "",
     contact: partner.contact || "",
@@ -47,7 +56,9 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
     // ORIGINAL: }
     const missing = [
       ["Person name", form.person_name], ["Contact number", form.contact],
-      ["Business name", form.business_name], ["Location", form.location],
+      // UPDATED: Business name is no longer required
+      // ORIGINAL: ["Business name", form.business_name], ["Location", form.location],
+      ["Location", form.location],
     ].filter(([, v]) => !String(v || "").trim()).map(([k]) => k);
     if (missing.length) {
       const text = `Please fill in: ${missing.join(", ")}`;
@@ -86,7 +97,8 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
           </div>
           <div>
             <label>Contact number <span className="req">*</span></label>
-            <input value={form.contact} onChange={(e) => set("contact", e.target.value)} placeholder="Phone number" />
+            {/* ORIGINAL: <input value={form.contact} ... placeholder="Phone number" /> */}
+            <PhoneInput value={form.contact} original={partner.contact} onChange={(e) => set("contact", e.target.value)} placeholder="Phone number" />
           </div>
           {/* ADDED: Owner's name - right after the contact number */}
           <div>
@@ -94,16 +106,35 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
             <input value={form.owner_name} onChange={(e) => set("owner_name", e.target.value)} placeholder="Owner's name" />
           </div>
           <div>
-            <label>Business name <span className="req">*</span></label>
+            {/* ORIGINAL: <label>Business name <span className="req">*</span></label>
+                UPDATED: not required any more */}
+            <label>Business name</label>
             <input value={form.business_name} onChange={(e) => set("business_name", e.target.value)} placeholder="Company / firm name" />
           </div>
           <div>
             <label>Location <span className="req">*</span></label>
-            <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / city" />
+            {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / city" />
+                UPDATED: Hyderabad areas dropdown. "Other" shows a text box for any
+                other place - existing records with a full address keep working. */}
+            <select
+              value={locOther || (form.location && !HYDERABAD_AREAS.includes(form.location)) ? OTHER_LOCATION : form.location}
+              onChange={(e) => {
+                if (e.target.value === OTHER_LOCATION) { setLocOther(true); if (HYDERABAD_AREAS.includes(form.location)) set("location", ""); }
+                else { setLocOther(false); set("location", e.target.value); }
+              }}
+            >
+              <option value="">Select location</option>
+              {HYDERABAD_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+              <option value={OTHER_LOCATION}>Other (type location)</option>
+            </select>
+            {(locOther || (form.location && !HYDERABAD_AREAS.includes(form.location))) && (
+              <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location / address" autoFocus={locOther && !form.location} />
+            )}
           </div>
           <div>
             <label>WhatsApp number</label>
-            <input value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="WhatsApp number" />
+            {/* ORIGINAL: <input value={form.whatsapp} ... placeholder="WhatsApp number" /> */}
+            <PhoneInput value={form.whatsapp} original={partner.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="WhatsApp number" />
           </div>
           <div>
             <label>Category</label>

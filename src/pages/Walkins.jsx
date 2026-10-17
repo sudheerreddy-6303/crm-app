@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: 2 rows of cards per page + page numbers
+import Pager, { useTwoRowLimit } from "../components/Pager.jsx";
+// ADDED: admin-only "Copy numbers" button
+import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+// UPDATED: phone numbers hidden for everyone here (cardPhone). PREVIOUS: import { phoneText } ...
+import { cardPhone } from "../utils/maskPhone.js";
 // ADDED: admin "Export to Excel" (shared helper + button)
 import ExportButton from "../components/ExportButton.jsx";
 import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
@@ -45,13 +52,15 @@ export default function Walkins() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({ search: "", purpose: "" });
   const [page, setPage] = useState(1);
-  const limit = 50;
+  // ORIGINAL: const limit = 50;  (now: 2 rows of cards per page, 50 in Table view - see useTwoRowLimit below)
   const [modalWalkin, setModalWalkin] = useState(null);
   // ADDED: walk-in being converted to a lead (null = pop-up closed)
   const [convertWalkin, setConvertWalkin] = useState(null);
   const [msg, setMsg] = useState({ type: "", text: "" });
   // ADDED: cards view (default) / original table view
   const [viewMode, setViewMode] = useState("cards");
+  // ADDED: Cards view shows 2 rows per page (+ page numbers); Table view 50 per page
+  const { gridRef: cardsGridRef, limit } = useTwoRowLimit(viewMode === "cards", setPage);
   // ADDED: walk-in shown in the read-only View pop-up (admin)
   const [viewWalkin, setViewWalkin] = useState(null);
   // ADDED: lead opened by "Follow up" (same lead form as the lead cards)
@@ -105,7 +114,8 @@ export default function Walkins() {
     api(`/walkins?${q}`)
       .then((d) => { setWalkins(d.walkins); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
-  }, [page, filters]);
+  // ORIGINAL: }, [page, filters]);
+  }, [page, filters, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -153,6 +163,8 @@ export default function Walkins() {
             UPDATED: same button, with the admin Export button beside it */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {isAdmin && <ExportButton onExport={exportAll} />}
+          {/* ADDED: copy phone + alt. mobile numbers (admin only) */}
+          <CopyNumbersButton fields={["phone", "alt_phone"]} getRows={() => fetchAllPages("/walkins", { search: filters.search, purpose: filters.purpose }, "walkins")} />
           <button className="btn" onClick={() => setModalWalkin({})}>+ Add walk-in</button>
         </div>
       </div>
@@ -179,7 +191,7 @@ export default function Walkins() {
 
       {/* ADDED: walk-in cards - same look as the lead cards */}
       {viewMode === "cards" && (
-        <div className="lead-cards">
+        <div className="lead-cards" ref={cardsGridRef}>
           {walkins.length === 0 && <div className="card empty">No walk-ins yet. Click "+ Add walk-in" to create one.</div>}
           {walkins.map((w) => (
             <div className="lead-card" key={`wk${w.id}`}>
@@ -198,8 +210,8 @@ export default function Walkins() {
                 <span>Project / villa</span><b>{w.project_name || "-"}</b>
                 <span>Purpose</span><b>{w.purpose || "-"}</b>
                 <span>Phone number</span>
-                <b><a className="wa-link" href={`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(waMessage(w))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{w.phone}</a></b>
-                {w.alt_phone && (<><span>Alt. mobile</span><b><a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer">{w.alt_phone}</a></b></>)}
+                <b><a className="wa-link" href={`https://wa.me/${waNumber(w.phone)}?text=${encodeURIComponent(waMessage(w))}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{cardPhone(w.phone) /* ORIGINAL: {w.phone} - PREVIOUS: phoneText */}</a></b>
+                {w.alt_phone && (<><span>Alt. mobile</span><b><a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer">{cardPhone(w.alt_phone) /* ORIGINAL: {w.alt_phone} - PREVIOUS: phoneText */}</a></b></>)}
                 <span>Visit date</span><b>{fmt(w.visit_date) || "-"}</b>
                 <span>Experience centre</span><b>{w.location || "-"}</b>
                 <span>Location</span><b>{[w.site_location, w.city].filter(Boolean).join(", ") || "-"}</b>
@@ -266,14 +278,14 @@ export default function Walkins() {
                       rel="noreferrer"
                       title="Open WhatsApp chat"
                     >
-                      {w.phone}
+                      {cardPhone(w.phone) /* ORIGINAL: {w.phone} - PREVIOUS: phoneText (table: hidden for everyone now) */}
                     </a>
                   </td>
                   {/* ADDED: alternate mobile (also a WhatsApp link when present) */}
                   <td>
                     {w.alt_phone ? (
                       <a className="wa-link" href={`https://wa.me/${waNumber(w.alt_phone)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">
-                        {w.alt_phone}
+                        {cardPhone(w.alt_phone) /* ORIGINAL: {w.alt_phone} - PREVIOUS: phoneText */}
                       </a>
                     ) : "-"}
                   </td>
@@ -310,7 +322,11 @@ export default function Walkins() {
       </div>
       )}
 
-      {pages > 1 && (
+      {/* ADDED: numbered pages for the Cards view (2 rows per page) */}
+      {viewMode === "cards" && <Pager page={page} pages={pages} total={total} onPage={setPage} noun="walk-ins" />}
+
+      {/* ORIGINAL Prev / Next - kept for the Table view */}
+      {viewMode === "table" && pages > 1 && (
         <div className="filters" style={{ marginTop: 12 }}>
           <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
           <span style={{ fontSize: 13 }}>Page {page} of {pages}</span>

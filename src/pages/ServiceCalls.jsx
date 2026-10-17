@@ -1,9 +1,19 @@
-import React, { useCallback, useEffect, useState } from "react";
+// ORIGINAL: import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api, getUser } from "../api.js";
+// ADDED: admin-only "Copy numbers" button
+import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+// ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
+// UPDATED: + cardPhone (number hidden on the cards for everyone)
+import { phoneText, cardPhone } from "../utils/maskPhone.js";
 // ADDED: admin "Export to Excel" (shared helper + button)
 import ExportButton from "../components/ExportButton.jsx";
 import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
-import ServiceCallModal, { SERVICE_CATEGORIES } from "../components/ServiceCallModal.jsx";
+// UPDATED: + DESIGNER_CATEGORY (Interior Designer extra details)
+import ServiceCallModal, { SERVICE_CATEGORIES, DESIGNER_CATEGORY } from "../components/ServiceCallModal.jsx";
+// ADDED: open the uploaded CV + pop-up on error
+import { openCv } from "../utils/serviceCallCv.js";
+import { showPopup } from "../components/Popup.jsx";
 // ADDED: Excel/CSV import modal for service calls
 import ServiceCallImportModal from "../components/ServiceCallImportModal.jsx";
 
@@ -47,15 +57,33 @@ function WhatsAppIcon() {
 // table of service calls, search + category filter, and a top-right
 // "+ Add service call" button that opens the modal (Name, Phone number,
 // Category dropdown, Location, Remarks).
+// ADDED: page numbers to show - first, last, and 2 either side of the current
+// page, with "…" for the gaps. e.g. 1 … 4 5 [6] 7 8 … 20
+function pageList(current, totalPages) {
+  const set = new Set([1, totalPages]);
+  for (let p = current - 2; p <= current + 2; p++) if (p >= 1 && p <= totalPages) set.add(p);
+  const sorted = [...set].sort((a, b) => a - b);
+  const out = [];
+  sorted.forEach((p, i) => { if (i > 0 && p - sorted[i - 1] > 1) out.push("…"); out.push(p); });
+  return out;
+}
+
 export default function ServiceCalls() {
   const user = getUser();
   const isAdmin = user?.role === "admin";
 
   const [calls, setCalls] = useState([]);
   const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState({ search: "", category: "" });
+  // ORIGINAL: const [filters, setFilters] = useState({ search: "", category: "" });
+  // UPDATED: + location and experience filters
+  const [filters, setFilters] = useState({ search: "", category: "", location: "", experience: "" });
+  // ADDED: values for the Location / Experience dropdowns (from saved records)
+  const [filterOptions, setFilterOptions] = useState({ locations: [], experiences: [] });
+  useEffect(() => {
+    api("/service-calls/filter-options").then((d) => setFilterOptions({ locations: d.locations || [], experiences: d.experiences || [] })).catch(() => {});
+  }, []);
   const [page, setPage] = useState(1);
-  const limit = 50;
+  // ORIGINAL: const limit = 50;  (now set below: 2 rows of cards per page, 50 in Table view)
   const [modalCall, setModalCall] = useState(null);
   // ADDED: controls the Excel/CSV import modal
   const [showImport, setShowImport] = useState(false);
@@ -63,15 +91,44 @@ export default function ServiceCalls() {
   // ADDED: category count cards (e.g. how many Interior Designers, Electricians...)
   const [stats, setStats] = useState({ total: 0, categories: [] });
   const [showAllCats, setShowAllCats] = useState(false);
+  // ADDED: Cards / Table switch - cards are the default, the original table is kept
+  const [viewMode, setViewMode] = useState("cards");
+  // ADDED: Cards view shows exactly 2 ROWS per page. The number of cards in a
+  // row depends on the screen (3 on a computer, 1 on a phone), so it is measured
+  // from the cards grid and the page size = cards per row x 2.
+  const cardsGridRef = useRef(null);
+  const [cardCols, setCardCols] = useState(() => (window.innerWidth <= 860 ? 1 : 3));
+  useEffect(() => {
+    const el = cardsGridRef.current;
+    if (!el || viewMode !== "cards") return undefined;
+    const measure = () => {
+      const tracks = window.getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
+      if (tracks > 0) setCardCols((c) => (c === tracks ? c : tracks));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el); else window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); else window.removeEventListener("resize", measure); };
+  }, [viewMode]);
+  const limit = viewMode === "cards" ? cardCols * 2 : 50;
+  // when the page size changes (switching view / screen size) go back to page 1
+  const prevLimit = useRef(limit);
+  useEffect(() => {
+    if (prevLimit.current !== limit) { prevLimit.current = limit; setPage(1); }
+  }, [limit]);
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ page, limit });
     if (filters.search) q.set("search", filters.search);
     if (filters.category) q.set("category", filters.category);
+    // ADDED
+    if (filters.location) q.set("location", filters.location);
+    if (filters.experience) q.set("experience", filters.experience);
     api(`/service-calls?${q}`)
       .then((d) => { setCalls(d.serviceCalls); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
-  }, [page, filters]);
+  // ORIGINAL: }, [page, filters]);
+  }, [page, filters, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -110,12 +167,19 @@ export default function ServiceCalls() {
   // ADDED: export all service calls matching the search / category filter,
   // plus a second sheet with the per-category counts
   const exportAll = async () => {
-    const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category }, "serviceCalls");
+    const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience }, "serviceCalls");
     return downloadExcel([
       { name: "Service calls", rows: rows.map((c) => ({
         "Name": c.name || "", "Phone number": c.phone || "", "Category": c.category || "",
         "City": c.city || "", "Location": c.location || "", "Experience": c.experience || "",
         "Remarks": c.remarks || "", "Added by": c.created_by_name || "", "Date": d10(c.created_at),
+        // ADDED: Interior Designer details
+        "Experience (years)": c.exp_range || "", "Attended interview": c.interview_attended || "",
+        "Currently working location": c.current_location || "", "Company": c.company_name || "",
+        "Designation": c.designation || "", "Salary": c.salary || "", "CV": c.cv_name ? "Yes" : "",
+        "Follow-up 1 date": d10(c.followup1_date), "Follow-up 1 remark": c.followup1_remark || "",
+        "Follow-up 2 date": d10(c.followup2_date), "Follow-up 2 remark": c.followup2_remark || "",
+        "Follow-up 3 date": d10(c.followup3_date), "Follow-up 3 remark": c.followup3_remark || "",
       })) },
       { name: "Category counts", rows: [...stats.categories].sort((a, b) => b.count - a.count).map((c) => ({ "Category": c.category || c.name || "", "Count": Number(c.count || 0) })), numberCols: ["Count"] },
     ], filters.category ? `Service_calls_${filters.category}` : "Service_calls");
@@ -143,6 +207,8 @@ export default function ServiceCalls() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {/* ADDED: Export to Excel (admin only) */}
           {isAdmin && <ExportButton onExport={exportAll} />}
+          {/* ADDED: copy phone numbers (admin only) */}
+          <CopyNumbersButton fields={["phone"]} getRows={() => fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience }, "serviceCalls")} />
           {isAdmin && (
             <button className="btn secondary" onClick={() => setShowImport(true)}>⬆️ Import Excel</button>
           )}
@@ -198,8 +264,89 @@ export default function ServiceCalls() {
           <option value="">Categories</option>
           {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        {/* ADDED: Location + Experience filters */}
+        <select value={filters.location} onChange={(e) => { setPage(1); setFilters({ ...filters, location: e.target.value }); }} aria-label="Filter by location">
+          <option value="">All locations</option>
+          {filterOptions.locations.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <select value={filters.experience} onChange={(e) => { setPage(1); setFilters({ ...filters, experience: e.target.value }); }} aria-label="Filter by experience">
+          <option value="">All experience</option>
+          {filterOptions.experiences.map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+        {(filters.location || filters.experience) && (
+          <button className="btn small secondary" onClick={() => { setPage(1); setFilters({ ...filters, location: "", experience: "" }); }}>✕ Clear</button>
+        )}
+        {/* ADDED: Cards / Table switch (same as the other pages) */}
+        <div className="view-toggle" role="group" aria-label="View">
+          <button className={`btn small ${viewMode === "cards" ? "" : "secondary"}`} onClick={() => setViewMode("cards")}>▦ Cards</button>
+          <button className={`btn small ${viewMode === "table" ? "" : "secondary"}`} onClick={() => setViewMode("table")}>☰ Table</button>
+        </div>
       </div>
 
+      {/* ADDED: service call cards - same look as the other cards; phone number hidden (xxxxxxx789) */}
+      {viewMode === "cards" && (
+        <div className="lead-cards" ref={cardsGridRef}>
+          {calls.length === 0 && <div className="card empty">No service calls yet. Click "+ Add service call" to create one.</div>}
+          {calls.map((c) => (
+            <div className="lead-card" key={`sc${c.id}`}>
+              <div className="lc-head">
+                <div style={{ minWidth: 0 }}>
+                  <div className="lc-name">{c.name}</div>
+                  <div className="lc-sub">{[c.location, c.city].filter(Boolean).join(", ") || "-"}</div>
+                </div>
+                {c.category && <span className="chip none">{c.category}</span>}
+              </div>
+              <div className="lc-grid">
+                <span>Phone number</span>
+                <b>{c.phone ? (
+                  <a className="wa-link" href={`https://wa.me/${waNumber(c.phone)}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat">{cardPhone(c.phone)}</a>
+                ) : "-"}</b>
+                <span>Category</span><b>{c.category || "-"}</b>
+                <span>City</span><b>{c.city || "-"}</b>
+                <span>Location</span><b>{c.location || "-"}</b>
+                <span>Experience</span><b>{c.experience || "-"}</b>
+                {/* ADDED: Interior Designer details */}
+                {c.category === DESIGNER_CATEGORY && (<>
+                  <span>Experience (years)</span><b>{c.exp_range ? `${c.exp_range} years` : "-"}</b>
+                  <span>Attended interview</span><b>{c.interview_attended || "-"}</b>
+                  <span>Working location</span><b>{c.current_location || "-"}</b>
+                  <span>Company</span><b>{c.company_name || "-"}</b>
+                  <span>Designation</span><b>{c.designation || "-"}</b>
+                  {isAdmin && (<><span>Salary</span><b>{c.salary || "-"}</b></>)}
+                </>)}
+                <span>Added by</span><b>{c.created_by_name || "-"}</b>
+                <span>Date</span><b>{fmt(c.created_at) || "-"}</b>
+              </div>
+              {c.remarks && (
+                <div className="lc-remarks"><div><span>Remarks:</span> {c.remarks}</div></div>
+              )}
+              {/* ADDED: Interior Designer follow-ups (only the ones filled in) */}
+              {c.category === DESIGNER_CATEGORY && [1, 2, 3].some((n) => c[`followup${n}_date`] || c[`followup${n}_remark`]) && (
+                <div className="sc-fu">
+                  {[1, 2, 3].filter((n) => c[`followup${n}_date`] || c[`followup${n}_remark`]).map((n) => (
+                    <div key={n}><span>Follow-up {n}{c[`followup${n}_date`] ? ` (${fmt(c[`followup${n}_date`])})` : ""}:</span> {c[`followup${n}_remark`] || "-"}</div>
+                  ))}
+                </div>
+              )}
+              <div className="lc-actions">
+                <button className="btn small wa-btn" title="Send WhatsApp message" onClick={() => openWhatsApp(c)}>
+                  <WhatsAppIcon /><span style={{ marginLeft: 6 }}>WhatsApp</span>
+                </button>
+                {/* ADDED: View CV (Interior Designers with a CV) */}
+                {c.cv_name && (
+                  <button className="btn small secondary" title={c.cv_name}
+                          onClick={() => openCv(c.id).catch((e) => showPopup("error", e.message, "Could not open CV"))}>📄 CV</button>
+                )}
+                <button className="btn small secondary" onClick={() => setModalCall(c)}>Edit</button>
+                {isAdmin && <button className="btn small danger" onClick={() => remove(c)}>Delete</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ORIGINAL table below - unchanged, shown in "Table" view */}
+      {viewMode === "table" && (
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap sticky-scroll">
           <table>
@@ -225,7 +372,8 @@ export default function ServiceCalls() {
               {calls.map((c) => (
                 <tr key={c.id}>
                   <td>{c.name}</td>
-                  <td>{c.phone}</td>
+                  {/* ORIGINAL: <td>{c.phone}</td> */}
+                  <td>{phoneText(c.phone)}</td>
                   <td>{c.category || "-"}</td>
                   {/* ADDED: City + Experience cells */}
                   <td>{c.city || "-"}</td>
@@ -255,8 +403,23 @@ export default function ServiceCalls() {
           </table>
         </div>
       </div>
+      )}
 
-      {pages > 1 && (
+      {/* ADDED: numbered pages for the Cards view (2 rows per page) */}
+      {viewMode === "cards" && pages > 1 && (
+        <div className="pager" role="navigation" aria-label="Pages">
+          <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>« Prev</button>
+          {pageList(page, pages).map((p, i) => (p === "…"
+            ? <span key={`gap${i}`} className="pager-gap">…</span>
+            : <button key={p} className={`btn small ${p === page ? "" : "secondary"} pager-num`} aria-current={p === page ? "page" : undefined} onClick={() => setPage(p)}>{p}</button>
+          ))}
+          <button className="btn small secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next »</button>
+          <span className="pager-info">Page {page} of {pages} · {total} service calls</span>
+        </div>
+      )}
+
+      {/* ORIGINAL Prev / Next - kept for the Table view */}
+      {viewMode === "table" && pages > 1 && (
         <div className="filters" style={{ marginTop: 12 }}>
           <button className="btn small secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
           <span style={{ fontSize: 13 }}>Page {page} of {pages}</span>

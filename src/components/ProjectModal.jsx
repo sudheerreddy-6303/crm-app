@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api.js";
+// ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
+import PhoneInput from "./PhoneInput.jsx";
 
 // ADDED: Project add/edit modal - opened by "+ Add project" on the Project
 // Details page. Follows the same pattern as WalkinModal.
@@ -28,6 +30,10 @@ export default function ProjectModal({ project, onClose, onSaved }) {
     last_calling_date: project.last_calling_date ? String(project.last_calling_date).slice(0, 10) : "",
     units_booked_interiors: project.units_booked_interiors ?? 0,
     units_sold: project.units_sold ?? 0,
+    // ADDED: how many towers / flats, how much data in CRM
+    total_towers: project.total_towers ?? 0,
+    total_flats: project.total_flats ?? 0,
+    crm_data_count: project.crm_data_count ?? 0,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -72,11 +78,13 @@ export default function ProjectModal({ project, onClose, onSaved }) {
           </div>
           <div>
             <label>Contact number (owner)</label>
-            <input value={form.owner_contact} onChange={(e) => set("owner_contact", e.target.value)} placeholder="Owner's number" />
+            {/* ORIGINAL: <input value={form.owner_contact} ... /> */}
+            <PhoneInput value={form.owner_contact} original={project.owner_contact} onChange={(e) => set("owner_contact", e.target.value)} placeholder="Owner's number" />
           </div>
           <div>
             <label>Secondary number</label>
-            <input value={form.secondary_number} onChange={(e) => set("secondary_number", e.target.value)} placeholder="Secondary number" />
+            {/* ORIGINAL: <input value={form.secondary_number} ... /> */}
+            <PhoneInput value={form.secondary_number} original={project.secondary_number} onChange={(e) => set("secondary_number", e.target.value)} placeholder="Secondary number" />
           </div>
           <div>
             <label>Location</label>
@@ -106,11 +114,13 @@ export default function ProjectModal({ project, onClose, onSaved }) {
           </div>
           <div>
             <label>Phone number 1</label>
-            <input value={form.phone1} onChange={(e) => set("phone1", e.target.value)} placeholder="Phone number 1" />
+            {/* ORIGINAL: <input value={form.phone1} ... /> */}
+            <PhoneInput value={form.phone1} original={project.phone1} onChange={(e) => set("phone1", e.target.value)} placeholder="Phone number 1" />
           </div>
           <div>
             <label>Phone number 2</label>
-            <input value={form.phone2} onChange={(e) => set("phone2", e.target.value)} placeholder="Phone number 2" />
+            {/* ORIGINAL: <input value={form.phone2} ... /> */}
+            <PhoneInput value={form.phone2} original={project.phone2} onChange={(e) => set("phone2", e.target.value)} placeholder="Phone number 2" />
           </div>
           <div>
             <label>Data in CRM</label>
@@ -143,6 +153,22 @@ export default function ProjectModal({ project, onClose, onSaved }) {
           <div>
             <label>Units sold</label>
             <input type="number" min="0" value={form.units_sold} onChange={(e) => set("units_sold", e.target.value)} />
+          </div>
+          {/* ADDED: how many towers, how many flats, how much data in CRM
+              (plain number boxes - digits only, no up/down arrows) */}
+          <div>
+            {/* ORIGINAL label: How many towers */}
+            <label>No. of towers</label>
+            <input type="text" inputMode="numeric" value={form.total_towers} onChange={(e) => set("total_towers", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 4" />
+          </div>
+          <div>
+            {/* ORIGINAL label: How many flats */}
+            <label>No. of flats</label>
+            <input type="text" inputMode="numeric" value={form.total_flats} onChange={(e) => set("total_flats", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 600" />
+          </div>
+          <div>
+            <label>How much data in CRM</label>
+            <input type="text" inputMode="numeric" value={form.crm_data_count} onChange={(e) => set("crm_data_count", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 350" />
           </div>
         </div>
 
