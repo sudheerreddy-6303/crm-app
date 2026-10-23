@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+// ORIGINAL: import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, getUser } from "../api.js";
 // ADDED: 2 rows of cards per page + page numbers
@@ -125,10 +126,16 @@ export default function Leads() {
   // ADDED: Cards view shows 2 rows per page (+ page numbers); tables keep 50 per page
   const { gridRef: cardsGridRef, limit } = useTwoRowLimit(showCards, setPage);
 
+  // ADDED: only the LATEST request may fill the cards. When the page size changes
+  // (screen measured -> 6 becomes 8 cards) two requests run; an older, slower
+  // answer used to overwrite the newer one, leaving page 1 not fully filled.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current; // ADDED
     try {
       const q = new URLSearchParams({ ...filters, page, limit }).toString();
       const data = await api(`/leads?${q}`);
+      if (seq !== loadSeq.current) return; // ADDED: a newer request is running
       setLeads(data.leads);
       setTotal(data.total);
       setSelected([]);
@@ -342,7 +349,8 @@ export default function Leads() {
     // ORIGINAL title: "Fresh (not called)"
     [filters.category === "FRESH", "Not attempt"],
     // ADDED
-    [filters.category === "NI_NA", "Not interested + Not answered"],
+    // ORIGINAL: [filters.category === "NI_NA", "Not interested + Not answered"],
+    [filters.category === "NI_NA", "Connected calls"],
   ];
   const activeTitles = TITLE_BY_FILTER.filter(([on]) => on).map(([, t]) => t);
   const pageTitle = filters.stage === "leads" || activeTitles.length !== 1 ? "Leads" : activeTitles[0];
@@ -392,7 +400,8 @@ export default function Leads() {
           {/* ORIGINAL text: FRESH (NOT CALLED) - same value, new name */}
           <option value="FRESH">NOT ATTEMPT</option>
           {/* ADDED: matches the "Not interested + Not answered" dashboard card */}
-          <option value="NI_NA">NOT INTERESTED + NOT ANSWERED</option>
+          {/* ORIGINAL: <option value="NI_NA">NOT INTERESTED + NOT ANSWERED</option> */}
+          <option value="NI_NA">CONNECTED CALLS</option>
         </select>
         <select value={filters.quote} onChange={(e) => { setPage(1); setFilters({ ...filters, quote: e.target.value }); }}>
           <option value="">Quote sent?</option><option>Yes</option><option>No</option>

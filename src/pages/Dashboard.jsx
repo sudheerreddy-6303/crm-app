@@ -103,7 +103,9 @@ export default function Dashboard({ asUser = null } = {}) {
     { label: "Not interested", value: t.not_interested, cls: "k-red", link: "/leads?category=NOT INTERESTED" },
     { label: "Not answered", value: t.not_answered, cls: "k-amber", link: "/leads?category=NOT ANSWERED" },
     // ADDED: Not interested + Not answered (total of the two cards above)
-    { label: "Not interested + Not answered", value: Number(t.not_interested || 0) + Number(t.not_answered || 0), cls: "k-red", link: "/leads?category=NI_NA" },
+    // ORIGINAL label: "Not interested + Not answered"  - RENAMED to "Connected calls" (same count)
+    // ORIGINAL (full line): { label: "Not interested + Not answered", value: Number(t.not_interested || 0) + Number(t.not_answered || 0), cls: "k-red", link: "/leads?category=NI_NA" },
+    { label: "Connected calls", value: Number(t.not_interested || 0) + Number(t.not_answered || 0), cls: "k-red", link: "/leads?category=NI_NA" },
     // ORIGINAL label: "Fresh (not called)"  - UPDATED name: "Not attempt" (same count, same link)
     { label: "Not attempt", value: t.fresh, cls: "", link: "/leads?category=FRESH" },
     { label: "Quotes sent", value: t.quotes_sent, cls: "k-blue", link: "/leads?quote=Yes" },

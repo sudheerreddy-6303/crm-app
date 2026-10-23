@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+// ORIGINAL: import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
+// ADDED: hide the number on the "already saved" card (xxxxxxx789)
+import { cardPhone } from "../utils/maskPhone.js";
 
 // ADDED: Walk-in add/edit modal - opened by the "+ Add walk-in" button on the
 // Walk-ins page. Follows the same pattern as ServiceCallModal.
@@ -13,8 +16,24 @@ export const WALKIN_PURPOSES = [
   "Renovation", "Just Enquiry", "Other",
 ];
 
+// ADDED: form values from a saved walk-in (used when a typed number is already
+// saved on a walk-in - its details are loaded into the form)
+const fromWalkin = (w) => ({
+  name: w.name || "", phone: w.phone || "", alt_phone: w.alt_phone || "", project_name: w.project_name || "",
+  visit_date: w.visit_date ? String(w.visit_date).slice(0, 10) : "", purpose: w.purpose || "",
+  location: w.location || "", site_location: w.site_location || "", city: w.city || "", address: w.address || "",
+  budget: w.budget || "", attended_by: w.attended_by || "", remarks: w.remarks || "",
+});
+const digitsOf = (v) => String(v || "").replace(/\D/g, "");
+
 export default function WalkinModal({ walkin, onClose, onSaved }) {
-  const isNew = !walkin.id;
+  // ORIGINAL: const isNew = !walkin.id;
+  // UPDATED: when a typed number is already saved on a walk-in, the form
+  // switches to editing THAT walk-in (existing.id) - saving updates it.
+  const [existing, setExisting] = useState(null);
+  const [existingCount, setExistingCount] = useState(0);
+  const editId = walkin.id || (existing && existing.id) || null;
+  const isNew = !editId;
   const [form, setForm] = useState({
     name: walkin.name || "",
     phone: walkin.phone || "",
@@ -36,6 +55,55 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // ADDED: in "Add walk-in", as soon as a full number (10+ digits) is typed in
+  // Phone or Alternate mobile, check if it is already saved on a walk-in.
+  // If yes, load that walk-in's details into the form.
+  const [checking, setChecking] = useState(false);
+  const lookupSeq = useRef(0);
+  // ADDED: shown when the number check cannot reach the server (e.g. backend not updated yet)
+  const [lookupWarn, setLookupWarn] = useState("");
+  const checkedNumbers = useRef(new Set());
+  const typedNumbers = [form.phone, form.alt_phone].map(digitsOf).filter((d) => d.length >= 10).join(",");
+  useEffect(() => {
+    if (walkin.id || existing || !typedNumbers) return undefined;
+    const toCheck = typedNumbers.split(",").filter((d) => !checkedNumbers.current.has(d.slice(-10)));
+    if (!toCheck.length) return undefined;
+    const seq = ++lookupSeq.current;
+    const t = setTimeout(async () => {
+      setChecking(true);
+      try {
+        for (const num of toCheck) {
+          checkedNumbers.current.add(num.slice(-10));
+          const d = await api(`/walkins/lookup?phone=${encodeURIComponent(num)}`);
+          if (seq !== lookupSeq.current) return;
+          if (d.found && d.walkin) {
+            setExisting(d.walkin);
+            setExistingCount(d.matches || 1);
+            setForm(fromWalkin(d.walkin));
+            setError("");
+            return;
+          }
+        }
+      } catch (e) {
+        // UPDATED: tell the user instead of failing silently
+        setLookupWarn("Could not check if this number is already saved. Please make sure the latest backend is deployed.");
+        checkedNumbers.current = new Set(); // allow a retry when the number is typed again
+      }
+      finally { if (seq === lookupSeq.current) setChecking(false); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [typedNumbers, walkin.id, existing]);
+
+  // ADDED: "Not this person? Start again"
+  const clearExisting = () => {
+    lookupSeq.current++;
+    checkedNumbers.current = new Set();
+    setExisting(null);
+    setExistingCount(0);
+    setForm(fromWalkin({}));
+    setError("");
+  };
+
   const save = async () => {
     setError("");
     if (!form.name.trim() || !form.phone.trim()) {
@@ -46,7 +114,8 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
       if (isNew) {
         await api("/walkins", { method: "POST", body: JSON.stringify(form) });
       } else {
-        await api(`/walkins/${walkin.id}`, { method: "PUT", body: JSON.stringify(form) });
+        // ORIGINAL: await api(`/walkins/${walkin.id}`, { method: "PUT", body: JSON.stringify(form) });
+        await api(`/walkins/${editId}`, { method: "PUT", body: JSON.stringify(form) });
       }
       onSaved();
     } catch (e) {
@@ -64,7 +133,41 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         {/* ADDED: "X" close button (top-right) - closes the form without saving */}
         <button type="button" className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
-        <h3>{isNew ? "Add walk-in" : `Edit walk-in — ${walkin.name}`}</h3>
+        {/* ORIGINAL: <h3>{isNew ? "Add walk-in" : `Edit walk-in — ${walkin.name}`}</h3> */}
+        <h3>{isNew ? "Add walk-in" : `Edit walk-in — ${walkin.name || (existing && existing.name) || ""}`}</h3>
+        {/* ADDED: number already saved on a walk-in -> its details are loaded below */}
+        {existing && !walkin.id && (
+          <>
+            <div className="sc-dup">
+              <div>
+                <b>This phone number is already saved{existingCount > 1 ? ` on ${existingCount} walk-ins` : ""}.</b> The walk-in details are loaded below.
+                Saving will <b>update this walk-in</b> - no duplicate will be created.
+              </div>
+              <button type="button" className="btn small secondary" onClick={clearExisting}>Not this person? Start again</button>
+            </div>
+            <div className="lead-card sc-found-card">
+              <div className="lc-head">
+                <div>
+                  <div className="lc-name">🚶 {existing.name || "-"}</div>
+                  <div className="lc-sub">Already visited{existing.visit_date ? ` on ${String(existing.visit_date).slice(0, 10)}` : ""}</div>
+                </div>
+                {existing.converted_lead_id ? <span className="chip yes">✓ Lead</span> : <span className="chip none">Walk-in</span>}
+              </div>
+              <div className="lc-grid">
+                <span>Phone number</span><b>{cardPhone(existing.phone) || "-"}</b>
+                {existing.alt_phone && (<><span>Alt. mobile</span><b>{cardPhone(existing.alt_phone)}</b></>)}
+                <span>Project / villa</span><b>{existing.project_name || "-"}</b>
+                <span>Purpose</span><b>{existing.purpose || "-"}</b>
+                <span>Experience centre</span><b>{existing.location || "-"}</b>
+                <span>Budget</span><b>{existing.budget || "-"}</b>
+                <span>Attended by</span><b>{existing.attended_by || "-"}</b>
+              </div>
+              {existing.remarks && <div className="lc-remarks"><div><span>Remarks:</span> {existing.remarks}</div></div>}
+            </div>
+          </>
+        )}
+        {checking && !existing && <div className="sc-checking">Checking number…</div>}
+        {lookupWarn && !existing && <div className="sc-checking" style={{ color: "var(--red-ink)" }}>⚠ {lookupWarn}</div>}
         {error && <div className="error-msg">{error}</div>}
 
         <div className="form-grid">

@@ -40,7 +40,12 @@ export default function ProjectViewModal({ project: p, onClose }) {
     ["Contacts", [
       ["Owner contact", phone(p.owner_contact)],
       ["Secondary no.", phone(p.secondary_number)],
-      ["Sales executive", val(p.sales_executive)],
+      // UPDATED label: Sales executive -> Sales executive 1 name (same field)
+      ["Sales executive 1 name", val(p.sales_executive)],
+      // ADDED
+      ["Sales executive 1 phone", phone(p.sales_exec1_phone)],
+      ["Sales executive 2 name", val(p.sales_exec2_name)],
+      ["Sales executive 2 phone", phone(p.sales_exec2_phone)],
       ["Phone 1", phone(p.phone1)],
       ["Phone 2", phone(p.phone2)],
     ]],

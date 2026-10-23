@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+// ORIGINAL: import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 // ADDED: used by the project summary cards (click opens that project's leads)
 import { useNavigate } from "react-router-dom";
 // ADDED: Excel export of project names + phone numbers (same library the
@@ -77,13 +78,19 @@ export default function ProjectDetails() {
       .finally(() => setSummaryLoading(false));
   }, []);
 
+  // ADDED: only the LATEST request may fill the cards. When the page size changes
+  // (screen measured -> 6 becomes 8 cards) two requests run; an older, slower
+  // answer used to overwrite the newer one, leaving page 1 not fully filled.
+  const loadSeq = useRef(0);
   const load = useCallback(() => {
+    const seq = ++loadSeq.current; // ADDED
     const q = new URLSearchParams({ page, limit });
     if (filters.search) q.set("search", filters.search);
     if (filters.type) q.set("type", filters.type);
     if (filters.status) q.set("status", filters.status);
     api(`/projects?${q}`)
-      .then((d) => { setProjects(d.projects); setTotal(d.total); })
+      // ORIGINAL: .then((d) => { setProjects(d.projects); setTotal(d.total); })
+      .then((d) => { if (seq !== loadSeq.current) return; setProjects(d.projects); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
   // ORIGINAL: }, [page, filters]);
   }, [page, filters, limit]);
@@ -132,6 +139,11 @@ export default function ProjectDetails() {
         "Secondary no.": p.secondary_number || "",
         "Phone 1": p.phone1 || "",
         "Phone 2": p.phone2 || "",
+        // ADDED: sales executive numbers
+        "Sales executive 1": p.sales_executive || "",
+        "Sales executive 1 phone": p.sales_exec1_phone || "",
+        "Sales executive 2": p.sales_exec2_name || "",
+        "Sales executive 2 phone": p.sales_exec2_phone || "",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       // keep numbers as text so they don't turn into 9.85E+09 in Excel
@@ -171,6 +183,8 @@ export default function ProjectDetails() {
                 "Project name": p.project_name || "", "Type": p.type || "", "Status": p.status || "",
                 "Location": p.location || "", "Address": p.address || "", "Owner contact": p.owner_contact || "",
                 "Secondary no.": p.secondary_number || "", "Sales executive": p.sales_executive || "",
+                // ADDED
+                "Sales executive 1 phone": p.sales_exec1_phone || "", "Sales executive 2": p.sales_exec2_name || "", "Sales executive 2 phone": p.sales_exec2_phone || "",
                 "Phone 1": p.phone1 || "", "Phone 2": p.phone2 || "", "Data in CRM": p.data_in_crm || "",
                 "Marketing": p.marketing || "", "Rounds called": Number(p.rounds_called || 0),
                 "Last call": d10(p.last_calling_date), "Units booked (interiors)": Number(p.units_booked_interiors || 0),
@@ -194,7 +208,7 @@ export default function ProjectDetails() {
           </button>
           )}
           {/* ADDED: copy owner / secondary / phone 1 / phone 2 numbers (admin only) */}
-          <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects")} />
+          <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2", "sales_exec1_phone", "sales_exec2_phone"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects")} />
           <button className="btn" onClick={() => setModalProject({})}>+ Add project</button>
         </div>
       </div>
@@ -292,7 +306,12 @@ export default function ProjectDetails() {
               <div className="lc-grid">
                 <span>Owner contact</span><b><WaCell value={p.owner_contact} card /></b>
                 <span>Secondary no.</span><b><WaCell value={p.secondary_number} card /></b>
-                <span>Sales executive</span><b>{p.sales_executive || "-"}</b>
+                {/* UPDATED label: Sales executive -> Sales exec 1 (same field) */}
+                <span>Sales exec 1</span><b>{p.sales_executive || "-"}</b>
+                {/* ADDED: sales executive 1 phone + sales executive 2 (number hidden like the other cards) */}
+                <span>Sales exec 1 phone</span><b><WaCell value={p.sales_exec1_phone} card /></b>
+                <span>Sales exec 2</span><b>{p.sales_exec2_name || "-"}</b>
+                <span>Sales exec 2 phone</span><b><WaCell value={p.sales_exec2_phone} card /></b>
                 <span>Phone 1</span><b><WaCell value={p.phone1} card /></b>
                 <span>Phone 2</span><b><WaCell value={p.phone2} card /></b>
                 <span>Data in CRM</span><b>{p.data_in_crm || "-"}</b>

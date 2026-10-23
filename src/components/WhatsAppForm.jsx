@@ -13,6 +13,10 @@ import { showPopup } from "./Popup.jsx";
 // "Continue" checks the required fields and shows a popup with the selection.
 // UPDATED: Continue now saves the request in the database (POST /api/whatsapp)
 // and tells the page (onSaved) so the history list below refreshes.
+// UPDATED: admins are also listed in the "Telecaller name" dropdown (marked
+// "(Admin)"); the Projects dropdown also offers Interior Designers, Tele Callers
+// and Sales Executive; and only ONE project can be chosen (not several).
+export const WA_GROUPS = ["Interior Designers", "Tele Callers", "Sales Executive"];
 // ORIGINAL: export default function WhatsAppForm({ channel }) {
 export default function WhatsAppForm({ channel, channelKey, onSaved }) {
   const user = getUser();
@@ -29,23 +33,40 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
   const boxRef = useRef(null);
   // ADDED: saving state (button disabled while saving)
   const [saving, setSaving] = useState(false);
+  // ADDED: Meta WhatsApp only - read / delivered / failed (optional numbers)
+  const isMeta = channelKey === "meta";
+  const [readCount, setReadCount] = useState("");
+  const [deliveredCount, setDeliveredCount] = useState("");
+  const [failedCount, setFailedCount] = useState("");
+  const readPlusDelivered = Number(readCount || 0) + Number(deliveredCount || 0);
+  const digitsOnly = (v) => v.replace(/\D/g, "");
 
   useEffect(() => {
     if (!isAdmin) return;
-    api("/users").then((rows) => setTelecallers((rows || []).filter((r) => r.role === "telecaller"))).catch(() => {});
+    // ORIGINAL: api("/users").then((rows) => setTelecallers((rows || []).filter((r) => r.role === "telecaller"))).catch(() => {});
+    // UPDATED: admins too (telecallers first, then admins)
+    api("/users").then((rows) => {
+      const list = rows || [];
+      setTelecallers([...list.filter((r) => r.role === "telecaller"), ...list.filter((r) => r.role === "admin")]);
+    }).catch(() => {});
   }, [isAdmin]);
 
   // Projects follow the chosen telecaller (backend already limits a telecaller to their own)
   useEffect(() => {
-    const q = isAdmin && telecallerId ? `?assigned=${telecallerId}` : "";
+    // ORIGINAL: const q = isAdmin && telecallerId ? `?assigned=${telecallerId}` : "";
+    // UPDATED: when an ADMIN is picked, show all projects (admins have no own leads)
+    const pickedIsAdmin = telecallers.some((t) => String(t.id) === String(telecallerId) && t.role === "admin");
+    const q = isAdmin && telecallerId && !pickedIsAdmin ? `?assigned=${telecallerId}` : "";
     api(`/dashboard/projects${q}`)
       .then((d) => {
         const list = d.projects || [];
         setProjects(list);
-        setSelected((sel) => sel.filter((p) => list.includes(p)));
+        // UPDATED: keep the choice if it is still in the list (or is one of the groups)
+        setSelected((sel) => sel.filter((p) => list.includes(p) || WA_GROUPS.includes(p)));
       })
       .catch(() => setProjects([]));
-  }, [isAdmin, telecallerId]);
+  // UPDATED: + telecallers (to know if the picked person is an admin)
+  }, [isAdmin, telecallerId, telecallers]);
 
   // close the dropdown when tapping outside it
   useEffect(() => {
@@ -55,9 +76,12 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
 
-  const toggle = (p) => setSelected((sel) => (sel.includes(p) ? sel.filter((x) => x !== p) : [...sel, p]));
-  const allSelected = projects.length > 0 && selected.length === projects.length;
-  const toggleAll = () => setSelected(allSelected ? [] : [...projects]);
+  // ORIGINAL (several projects): const toggle = (p) => setSelected((sel) => (sel.includes(p) ? sel.filter((x) => x !== p) : [...sel, p]));
+  // UPDATED: only ONE project - picking another replaces it; picking the same one clears it
+  const toggle = (p) => { setSelected((sel) => (sel.includes(p) ? [] : [p])); setOpen(false); };
+  // REMOVED (only one project now - no "Select all"):
+  // const allSelected = projects.length > 0 && selected.length === projects.length;
+  // const toggleAll = () => setSelected(allSelected ? [] : [...projects]);
 
   const tcName = isAdmin
     ? telecallers.find((t) => String(t.id) === String(telecallerId))?.name || ""
@@ -69,7 +93,7 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
     if (saving) return;
     const missing = [];
     if (!telecallerId) missing.push("Telecaller name");
-    if (selected.length === 0) missing.push("Projects");
+    if (selected.length === 0) missing.push("Project");
     if (!count || Number(count) <= 0) missing.push("Count");
     if (!sendDate) missing.push("Sending date");
     if (missing.length) {
@@ -89,7 +113,12 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
     try {
       await api("/whatsapp", {
         method: "POST",
-        body: JSON.stringify({ channel: channelKey, telecaller_id: Number(telecallerId), projects: selected, count: Number(count), send_date: sendDate }),
+        // ORIGINAL: body: JSON.stringify({ channel: channelKey, telecaller_id: Number(telecallerId), projects: selected, count: Number(count), send_date: sendDate }),
+        // UPDATED: + read / delivered / failed (Meta WhatsApp only)
+        body: JSON.stringify({
+          channel: channelKey, telecaller_id: Number(telecallerId), projects: selected, count: Number(count), send_date: sendDate,
+          ...(isMeta ? { read_count: readCount, delivered_count: deliveredCount, failed_count: failedCount } : {}),
+        }),
       });
       showPopup(
         "success",
@@ -99,6 +128,8 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
       setSelected([]);
       setCount("");
       setSendDate("");
+      // ADDED
+      setReadCount(""); setDeliveredCount(""); setFailedCount("");
       if (onSaved) onSaved();
     } catch {
       // api.js already shows the red error popup
@@ -114,8 +145,9 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
           <label>Telecaller name <span className="req">*</span></label>
           {isAdmin ? (
             <select value={telecallerId} onChange={(e) => setTelecallerId(e.target.value)}>
-              <option value="">Select telecaller</option>
-              {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <option value="">Select telecaller / admin</option>
+              {/* ORIGINAL: {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)} */}
+              {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}{t.role === "admin" ? " (Admin)" : ""}</option>)}
             </select>
           ) : (
             // ORIGINAL: <input value={user?.name || ""} readOnly />
@@ -125,27 +157,37 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
         </div>
 
         <div className="wa-ms" ref={boxRef}>
-          <label>Projects <span className="req">*</span></label>
+          {/* ORIGINAL label: Projects - UPDATED: only one can be chosen */}
+          <label>Project <span className="req">*</span></label>
           <button type="button" className={`wa-ms-btn${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             <span className={selected.length ? "" : "wa-ms-ph"}>
-              {selected.length === 0 ? "Select projects"
-                : selected.length <= 2 ? selected.join(", ")
-                : `${selected.length} projects selected`}
+              {/* ORIGINAL: "Select projects" / "N projects selected" */}
+              {selected.length === 0 ? "Select project" : selected[0]}
             </span>
             <span className="wa-ms-caret">▾</span>
           </button>
           {open && (
             <div className="wa-ms-menu">
+              {/* ADDED: Interior Designers / Tele Callers / Sales Executive at the top */}
+              <div className="wa-ms-group">Groups</div>
+              {WA_GROUPS.map((g) => (
+                <label key={g} className="wa-ms-opt">
+                  <input type="radio" name="wa-project" checked={selected.includes(g)} onChange={() => toggle(g)} /> {g}
+                </label>
+              ))}
+              <div className="wa-ms-group">Projects</div>
               {projects.length === 0 ? (
                 <div className="wa-ms-empty">No projects found</div>
               ) : (
                 <>
+                  {/* REMOVED: "Select all" - only one project can be chosen now
                   <label className="wa-ms-opt wa-ms-all">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} /> Select all ({projects.length})
-                  </label>
+                  </label> */}
                   {projects.map((p) => (
                     <label key={p} className="wa-ms-opt">
-                      <input type="checkbox" checked={selected.includes(p)} onChange={() => toggle(p)} /> {p}
+                      {/* ORIGINAL: <input type="checkbox" ... /> - UPDATED: single choice */}
+                      <input type="radio" name="wa-project" checked={selected.includes(p)} onChange={() => toggle(p)} /> {p}
                     </label>
                   ))}
                 </>
@@ -171,6 +213,31 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
           <input type="date" value={sendDate} min={todayStr} onChange={(e) => setSendDate(e.target.value)} />
         </div>
       </div>
+
+      {/* ADDED: Meta WhatsApp only - Read / Delivered / Failed + Read + Delivered (auto) */}
+      {isMeta && (
+        <div className="wa-stats">
+          <div className="form-grid">
+            <div>
+              <label>✓✓ Read</label>
+              <input type="text" inputMode="numeric" value={readCount} onChange={(e) => setReadCount(digitsOnly(e.target.value))} placeholder="0" />
+            </div>
+            <div>
+              <label>✓ Delivered</label>
+              <input type="text" inputMode="numeric" value={deliveredCount} onChange={(e) => setDeliveredCount(digitsOnly(e.target.value))} placeholder="0" />
+            </div>
+            <div>
+              <label>✕ Failed</label>
+              <input type="text" inputMode="numeric" value={failedCount} onChange={(e) => setFailedCount(digitsOnly(e.target.value))} placeholder="0" />
+            </div>
+            <div>
+              <label>Read + Delivered</label>
+              <div className="wa-total" aria-live="polite">{readPlusDelivered}</div>
+            </div>
+          </div>
+          <div className="wa-stats-note">Optional - you can also fill these later from the History card ("Update status").</div>
+        </div>
+      )}
 
       {selected.length > 0 && (
         <div className="wa-chips">

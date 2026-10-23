@@ -43,10 +43,41 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // ADDED: Meta WhatsApp only - read / delivered / failed on each card
+  const isMeta = channelKey === "meta";
+  const [editId, setEditId] = useState(null);
+  const [editVals, setEditVals] = useState({ read_count: "", delivered_count: "", failed_count: "" });
+  const [savingStats, setSavingStats] = useState(false);
+  const [statsReload, setStatsReload] = useState(0);
+  const numOrBlank = (v) => (v === null || v === undefined ? "" : String(v));
+  const statNum = (v) => Number(v || 0);
+  const startEdit = (r) => {
+    setEditId(r.id);
+    setEditVals({ read_count: numOrBlank(r.read_count), delivered_count: numOrBlank(r.delivered_count), failed_count: numOrBlank(r.failed_count) });
+  };
+  const saveStats = async (id) => {
+    if (savingStats) return;
+    setSavingStats(true);
+    try {
+      // api.js shows the success / error popup
+      await api(`/whatsapp/${id}/stats`, { method: "PUT", body: JSON.stringify(editVals) });
+      setEditId(null);
+      setStatsReload((n) => n + 1);
+    } catch {
+      // popup already shown
+    } finally {
+      setSavingStats(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) return;
-    api("/users").then((r) => setTelecallers((r || []).filter((u) => u.role === "telecaller"))).catch(() => {});
+    // ORIGINAL: api("/users").then((r) => setTelecallers((r || []).filter((u) => u.role === "telecaller"))).catch(() => {});
+    // UPDATED: admins too (requests can now be saved for an admin)
+    api("/users").then((r) => {
+      const list = r || [];
+      setTelecallers([...list.filter((u) => u.role === "telecaller"), ...list.filter((u) => u.role === "admin")]);
+    }).catch(() => {});
   }, [isAdmin]);
 
   useEffect(() => {
@@ -57,7 +88,9 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
       .then((d) => { setRows(d.requests || []); setError(""); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [channelKey, isAdmin, tcFilter, reloadKey]);
+  // ORIGINAL: }, [channelKey, isAdmin, tcFilter, reloadKey]);
+  // UPDATED: + statsReload (refresh after "Update status")
+  }, [channelKey, isAdmin, tcFilter, reloadKey, statsReload]);
 
   const today = todayStr();
   // ADDED: filters applied to the history
@@ -86,8 +119,16 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
       "Count": Number(r.count || 0),
       "Sending date": fmtDate(r.send_date),
       "Saved by": r.created_by_name,
+      // ADDED: Meta WhatsApp only
+      ...(isMeta ? {
+        "Read": statNum(r.read_count),
+        "Delivered": statNum(r.delivered_count),
+        "Failed": statNum(r.failed_count),
+        "Read + Delivered": statNum(r.read_count) + statNum(r.delivered_count),
+      } : {}),
     })),
-    numberCols: ["No. of projects", "Count"],
+    // ORIGINAL: numberCols: ["No. of projects", "Count"],
+    numberCols: isMeta ? ["No. of projects", "Count", "Read", "Delivered", "Failed", "Read + Delivered"] : ["No. of projects", "Count"],
   }], `${channel.replace(/\s+/g, "_")}_history`);
 
   return (
@@ -107,7 +148,7 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
             <label>Telecaller</label>
             <select value={tcFilter} onChange={(e) => setTcFilter(e.target.value)} aria-label="Filter by telecaller">
               <option value="">All telecallers</option>
-              {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}{t.role === "admin" ? " (Admin)" : ""}</option>)}
             </select>
           </div>
         )}
@@ -167,6 +208,34 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
                     <div><span>Sending date</span><b>📅 {fmtDate(r.send_date)}</b></div>
                     <div><span>Count</span><b>{r.count}</b></div>
                   </div>
+                  {/* ADDED: Meta WhatsApp only - Read / Delivered / Failed / Read + Delivered */}
+                  {isMeta && (editId === r.id ? (
+                    <div className="wa-stats-edit">
+                      <div className="wa-stats-edit-grid">
+                        {[["read_count", "✓✓ Read"], ["delivered_count", "✓ Delivered"], ["failed_count", "✕ Failed"]].map(([k, lbl]) => (
+                          <label key={k}>{lbl}
+                            <input type="text" inputMode="numeric" placeholder="0" value={editVals[k]}
+                              onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); setEditVals((o) => ({ ...o, [k]: v })); }} />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="wa-stats-edit-total">Read + Delivered = <b>{statNum(editVals.read_count) + statNum(editVals.delivered_count)}</b></div>
+                      <div className="wa-stats-edit-actions">
+                        <button type="button" className="btn small" disabled={savingStats} onClick={() => saveStats(r.id)}>{savingStats ? "Saving..." : "Save"}</button>
+                        <button type="button" className="btn small secondary" disabled={savingStats} onClick={() => setEditId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="wa-hcard-stats">
+                        <div className="read"><span>Read</span><b>{statNum(r.read_count)}</b></div>
+                        <div className="deliv"><span>Delivered</span><b>{statNum(r.delivered_count)}</b></div>
+                        <div className="fail"><span>Failed</span><b>{statNum(r.failed_count)}</b></div>
+                        <div className="total"><span>Read + Delivered</span><b>{statNum(r.read_count) + statNum(r.delivered_count)}</b></div>
+                      </div>
+                      <button type="button" className="btn small secondary wa-stats-btn" onClick={() => startEdit(r)}>✎ Update status</button>
+                    </>
+                  ))}
                   <div className="wa-hcard-label">Projects ({r.project_count || (r.projects || []).length})</div>
                   <div className="wa-chips wa-chips-sm">
                     {(r.projects || []).map((p) => <span key={p} className="wa-chip">{p}</span>)}

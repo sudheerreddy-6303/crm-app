@@ -1,6 +1,7 @@
 // ORIGINAL: import React, { useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
-import { api } from "../api.js";
+// ORIGINAL: import { api } from "../api.js";
+import { api, getUser } from "../api.js";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
 // ADDED: hide the number on the "already saved" card (xxxxxxx789)
@@ -46,6 +47,12 @@ export const SERVICE_CATEGORIES = [
   "Printer Repair", "Chair Repair", "Site Managers",
 ];
 
+// ADDED: categories hidden from the Add / Edit service call dropdown only
+// (kept in SERVICE_CATEGORIES so old records, filters and Excel import still work)
+const FORM_HIDDEN_CATEGORIES = ["Designer"];
+// ADDED: value of the "+ Add new category" item in the Category dropdown
+const NEW_CATEGORY = "__new_category__";
+
 // ADDED: form values from a saved record (used for the duplicate-number auto-fill)
 const toForm = (c, phone) => ({
   name: c.name || "",
@@ -77,10 +84,53 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
   // ADDED: checking the number while it is typed (only in "Add service call")
   const [checking, setChecking] = useState(false);
   const lookupSeq = useRef(0);
+  // ADDED: shown when the number check cannot reach the server (e.g. backend not updated yet)
+  const [lookupWarn, setLookupWarn] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // ADDED: categories added from the app (+ Add new category). Anyone can add;
+  // only admin can remove an added category from the list.
+  const isAdmin = getUser()?.role === "admin";
+  const [customCats, setCustomCats] = useState([]);
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const [catBusy, setCatBusy] = useState(false);
+  const loadCustomCats = () =>
+    api("/service-calls/categories").then((d) => setCustomCats(d.custom || [])).catch(() => {});
+  useEffect(() => { loadCustomCats(); }, []);
+  const onCategoryChange = (v) => {
+    if (v === NEW_CATEGORY) { setAddingCat(true); setNewCat(""); return; }
+    set("category", v);
+  };
+  const addCategory = async () => {
+    const name = newCat.replace(/\s+/g, " ").trim();
+    if (!name) { showPopup("error", "Please type the new category name.", "Category name missing"); return; }
+    setCatBusy(true);
+    try {
+      const d = await api("/service-calls/categories", { method: "POST", body: JSON.stringify({ name }) });
+      await loadCustomCats();
+      set("category", d.name);
+      setAddingCat(false); setNewCat("");
+    } catch (e) {
+      // already in the list -> just select it
+      const same = [...SERVICE_CATEGORIES, ...customCats.map((c) => c.name)].find((c) => c.toLowerCase() === name.toLowerCase());
+      if (same) { set("category", same); setAddingCat(false); setNewCat(""); }
+    } finally {
+      setCatBusy(false);
+    }
+  };
+  const removeCategory = async (c) => {
+    if (!window.confirm(`Remove "${c.name}" from the category list?\nService calls already saved with it keep it.`)) return;
+    try {
+      await api(`/service-calls/categories/${c.id}`, { method: "DELETE" });
+      loadCustomCats();
+    } catch { /* popup already shown */ }
+  };
+  const customNames = customCats.map((c) => c.name);
+
   // ADDED: true while "Other (type city)" is chosen in the City dropdown
   const [cityOther, setCityOther] = useState(false);
   const cityIsOther = cityOther || (form.city && !cityMatch(form.city));
@@ -127,7 +177,10 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           setCvName(d.call.cv_name || "");
           setError("");
         }
-      } catch { /* lookup is only a helper - saving still checks on the server */ }
+      } catch (e) {
+        // UPDATED: tell the user instead of failing silently
+        setLookupWarn("Could not check if this number is already saved. Please make sure the latest backend is deployed.");
+      }
       finally { if (seq === lookupSeq.current) setChecking(false); }
     }, 400);
     return () => clearTimeout(t);
@@ -156,7 +209,14 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
       // ORIGINAL: if (isNew) POST ... else PUT /service-calls/${call.id}
       // UPDATED: editId = this record, or the existing record found by number
       // ADDED: Interior Designer details are sent only for that category
-      const body = isDesigner ? { ...form, ...designer } : form;
+      // ORIGINAL: const body = isDesigner ? { ...form, ...designer } : form;
+      // UPDATED: every other category sends its 3 follow-ups too
+      const followups = {};
+      [1, 2, 3].forEach((n) => {
+        followups[`followup${n}_date`] = designer[`followup${n}_date`];
+        followups[`followup${n}_remark`] = designer[`followup${n}_remark`];
+      });
+      const body = isDesigner ? { ...form, ...designer } : { ...form, ...followups };
       // ORIGINAL: await api("/service-calls", { method: "POST", body: JSON.stringify(form) });
       // ORIGINAL: await api(`/service-calls/${editId}`, { method: "PUT", body: JSON.stringify(form) });
       let savedId = editId;
@@ -229,6 +289,7 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           </div>
         )}
         {checking && !existing && <div className="sc-checking">Checking number…</div>}
+        {lookupWarn && !existing && <div className="sc-checking" style={{ color: "var(--red-ink)" }}>⚠ {lookupWarn}</div>}
 
         <div className="form-grid">
           <div>
@@ -242,10 +303,44 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           </div>
           <div>
             <label>Category</label>
-            <select value={form.category} onChange={(e) => set("category", e.target.value)}>
+            {/* ORIGINAL: <select value={form.category} onChange={(e) => set("category", e.target.value)}> */}
+            <select value={form.category} onChange={(e) => onCategoryChange(e.target.value)}>
               <option value="">Select category</option>
-              {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {/* ORIGINAL: {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)} */}
+              {/* UPDATED: "Designer" removed from this dropdown (use "Interior Designer").
+                  Still shown when editing an old record that is already "Designer". */}
+              {SERVICE_CATEGORIES.filter((c) => !FORM_HIDDEN_CATEGORIES.includes(c) || form.category === c)
+                .map((c) => <option key={c} value={c}>{c}</option>)}
+              {/* ADDED: categories added from the app */}
+              {customNames.map((c) => <option key={`c-${c}`} value={c}>{c}</option>)}
+              {/* ADDED: old record whose category is no longer in any list - keep it visible */}
+              {form.category && !SERVICE_CATEGORIES.includes(form.category) && !customNames.includes(form.category) && (
+                <option value={form.category}>{form.category}</option>
+              )}
+              <option value={NEW_CATEGORY}>➕ Add new category…</option>
             </select>
+            {/* ADDED: add a new category to the dropdown */}
+            {addingCat && (
+              <div className="sc-newcat">
+                <div className="sc-newcat-row">
+                  <input autoFocus value={newCat} maxLength={60} placeholder="New category name"
+                    onChange={(e) => setNewCat(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }} />
+                  <button type="button" className="btn small" disabled={catBusy} onClick={addCategory}>{catBusy ? "Adding..." : "Add"}</button>
+                  <button type="button" className="btn small secondary" disabled={catBusy} onClick={() => { setAddingCat(false); setNewCat(""); }}>Cancel</button>
+                </div>
+                {isAdmin && customCats.length > 0 && (
+                  <div className="sc-newcat-list">
+                    <span>Added categories (admin can remove):</span>
+                    {customCats.map((c) => (
+                      <span key={c.id} className="sc-newcat-chip">{c.name}
+                        <button type="button" onClick={() => removeCategory(c)} aria-label={`Remove ${c.name}`} title="Remove from list">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label>City</label>
@@ -331,6 +426,27 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
                 <input type="file" accept={CV_ACCEPT} onChange={(e) => pickCv(e.target.files && e.target.files[0])} />
                 {cvFile && <div className="sc-cv-note">📎 {cvFile.name} will be uploaded when you save{cvName ? " (replaces the current CV)" : ""}.</div>}
               </div>
+              {[1, 2, 3].map((n) => (
+                <React.Fragment key={n}>
+                  <div>
+                    <label>Follow-up {n} date</label>
+                    <input type="date" value={designer[`followup${n}_date`]} onChange={(e) => setD(`followup${n}_date`, e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Follow-up {n} remark</label>
+                    <input value={designer[`followup${n}_remark`]} onChange={(e) => setD(`followup${n}_remark`, e.target.value)} placeholder={`What happened in follow-up ${n}?`} />
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ADDED: 3 follow-ups for EVERY other category (same as in Interior Designer details) */}
+        {!isDesigner && (
+          <div className="sc-designer sc-followups">
+            <div className="sc-designer-title">📞 Follow-ups</div>
+            <div className="form-grid">
               {[1, 2, 3].map((n) => (
                 <React.Fragment key={n}>
                   <div>

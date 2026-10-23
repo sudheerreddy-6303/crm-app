@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+// ORIGINAL: import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api, getUser } from "../api.js";
 // ADDED: 2 rows of cards per page + page numbers
 import Pager, { useTwoRowLimit } from "../components/Pager.jsx";
@@ -107,12 +108,18 @@ export default function Walkins() {
     }
   };
 
+  // ADDED: only the LATEST request may fill the cards. When the page size changes
+  // (screen measured -> 6 becomes 8 cards) two requests run; an older, slower
+  // answer used to overwrite the newer one, leaving page 1 not fully filled.
+  const loadSeq = useRef(0);
   const load = useCallback(() => {
+    const seq = ++loadSeq.current; // ADDED
     const q = new URLSearchParams({ page, limit });
     if (filters.search) q.set("search", filters.search);
     if (filters.purpose) q.set("purpose", filters.purpose);
     api(`/walkins?${q}`)
-      .then((d) => { setWalkins(d.walkins); setTotal(d.total); })
+      // ORIGINAL: .then((d) => { setWalkins(d.walkins); setTotal(d.total); })
+      .then((d) => { if (seq !== loadSeq.current) return; setWalkins(d.walkins); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
   // ORIGINAL: }, [page, filters]);
   }, [page, filters, limit]);
