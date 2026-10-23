@@ -66,6 +66,29 @@ export default function ProjectModal({ project, onClose, onSaved }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // ADDED: "How much data in CRM" fills in automatically = number of leads in
+  // the CRM with this project name (same count as the Projects summary cards).
+  // It updates as the Project name is typed; it can still be changed by hand.
+  const [crmAuto, setCrmAuto] = useState(null);
+  const crmTouched = useRef(false);
+  const crmSeq = useRef(0);
+  useEffect(() => {
+    const name = form.project_name.trim();
+    const seq = ++crmSeq.current;
+    if (!name) { setCrmAuto(null); return undefined; }
+    const t = setTimeout(() => {
+      api(`/projects/crm-count?name=${encodeURIComponent(name)}`)
+        .then((d) => {
+          if (seq !== crmSeq.current) return;
+          const n = Number(d.count) || 0;
+          setCrmAuto(n);
+          if (!crmTouched.current) setForm((f) => ({ ...f, crm_data_count: String(n) }));
+        })
+        .catch(() => { if (seq === crmSeq.current) setCrmAuto(null); });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.project_name]);
+
   // ADDED: in "Add project", as soon as a full number (10+ digits) is typed in
   // Owner contact / Secondary number / Phone 1 / Phone 2, check if it is
   // already saved on a project. If yes, load that project's details.
@@ -301,7 +324,14 @@ export default function ProjectModal({ project, onClose, onSaved }) {
           </div>
           <div>
             <label>How much data in CRM</label>
-            <input type="text" inputMode="numeric" value={form.crm_data_count} onChange={(e) => set("crm_data_count", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 350" />
+            {/* ORIGINAL: <input ... onChange={(e) => set("crm_data_count", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 350" /> */}
+            <input type="text" inputMode="numeric" value={form.crm_data_count} onChange={(e) => { crmTouched.current = true; set("crm_data_count", e.target.value.replace(/\D/g, "")); }} placeholder="e.g. 350" />
+            {/* ADDED: where the number came from */}
+            {crmAuto !== null && (
+              String(crmAuto) === String(form.crm_data_count)
+                ? <div className="wa-count-hint">Auto: <b>{crmAuto}</b> leads in CRM for this project</div>
+                : <div className="wa-count-hint changed">In CRM now: <b>{crmAuto}</b> <button type="button" onClick={() => { crmTouched.current = false; set("crm_data_count", String(crmAuto)); }}>use {crmAuto}</button></div>
+            )}
           </div>
         </div>
 

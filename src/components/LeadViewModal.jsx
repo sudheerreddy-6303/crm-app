@@ -1,6 +1,8 @@
 // UPDATED: useCallback added (for the call-history loader)
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
+// ADDED: clear Hot / Warm / Cold label
+import PriorityBadge from "./PriorityBadge.jsx";
 // ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
 import { phoneText } from "../utils/maskPhone.js";
 // ADDED: call history with admin replies (same component as the lead form)
@@ -34,7 +36,8 @@ export default function LeadViewModal({ lead, onClose }) {
       ["Primary phone", val(phoneText(lead.primary_phone))], // ORIGINAL: val(lead.primary_phone)
       ["Project", val(lead.project_name)],
       ["Project type", val(lead.project_type)],
-      ["Priority", lead.priority && lead.priority !== "none" ? lead.priority : "-"],
+      // ORIGINAL: ["Priority", lead.priority && lead.priority !== "none" ? lead.priority : "-"],
+      ["Priority", lead.priority && lead.priority !== "none" ? <PriorityBadge priority={lead.priority} /> : "-"],
       ["Source", val(lead.source)],
       ["Caller", val(lead.caller_name) === "-" ? "Unassigned" : lead.caller_name],
       ["Walk-in", val(lead.walkin)],

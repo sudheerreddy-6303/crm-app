@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, getUser } from "../api.js";
+// ADDED: clear Hot / Warm / Cold label
+import PriorityBadge from "../components/PriorityBadge.jsx";
 // ADDED: 2 rows of cards per page + page numbers
 import Pager, { useTwoRowLimit, useClientTwoRowPaging } from "../components/Pager.jsx";
 // ADDED: admin-only "Copy numbers" button (+ loads every page of results)
@@ -483,7 +485,8 @@ export default function Leads() {
               {/* UPDATED: name row now also has a "View" button on the right (admin only).
                   ORIGINAL name line kept exactly as it was, inside this row. */}
               <div className="lc-head">
-                <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}</div>
+                {/* ORIGINAL: <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}</div> */}
+                <div className="lc-name"><span className={`dot ${l.priority || "none"}`}></span>{l.name}<PriorityBadge priority={l.priority} /></div>
                 {isAdmin && (
                   <button className="btn small secondary lc-view" title="View full details" onClick={() => setViewLead(l)}>View</button>
                 )}
@@ -606,6 +609,8 @@ export default function Leads() {
                   <td>
                     <span className={`dot ${l.priority || "none"}`}></span>
                     <strong>{l.name}</strong>
+                    {/* ADDED */}
+                    <PriorityBadge priority={l.priority} />
                   </td>
                   {/* ADDED: project name cell */}
                   <td>{l.project_name || "-"}</td>

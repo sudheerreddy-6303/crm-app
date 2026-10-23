@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+// ADDED: clear Hot / Warm / Cold label
+import PriorityBadge from "../components/PriorityBadge.jsx";
 // ADDED: admin-only "Copy numbers" button
 import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
 import { fetchAllPages as fetchAllForCopy } from "../utils/exportExcel.js";
@@ -230,7 +232,8 @@ export default function TelecallerDetail() {
               )}
               {leads.map((l) => (
                 <tr key={l.id}>
-                  <td><span className={`dot ${l.priority || "none"}`}></span><strong>{l.name}</strong></td>
+                  {/* ORIGINAL: <td><span className={`dot ${l.priority || "none"}`}></span><strong>{l.name}</strong></td> */}
+                  <td><span className={`dot ${l.priority || "none"}`}></span><strong>{l.name}</strong><PriorityBadge priority={l.priority} /></td>
                   <td><a className="wa-link" href={`https://wa.me/91${l.primary_phone}`} target="_blank" rel="noreferrer">{phoneText(l.primary_phone) /* ORIGINAL: {l.primary_phone} */}</a></td>
                   <td>{fmt(l.first_calling_date)}</td>
                   <td>{l.call_category

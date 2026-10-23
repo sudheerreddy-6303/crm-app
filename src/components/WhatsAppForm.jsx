@@ -68,6 +68,37 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
   // UPDATED: + telecallers (to know if the picked person is an admin)
   }, [isAdmin, telecallerId, telecallers]);
 
+  // ADDED: Count fills in automatically when a project is picked
+  // (leads in that project for the chosen telecaller; service calls for a group).
+  // The box can still be changed by hand.
+  const [autoCount, setAutoCount] = useState(null); // { count, label } or null
+  const [countLoading, setCountLoading] = useState(false);
+  const countSeq = useRef(0);
+  const pickedProject = selected[0] || "";
+  useEffect(() => {
+    const seq = ++countSeq.current;
+    if (!pickedProject) { setAutoCount(null); return; }
+    const q = new URLSearchParams({ project: pickedProject });
+    if (telecallerId) q.set("telecaller_id", telecallerId);
+    setCountLoading(true);
+    api(`/whatsapp/count?${q}`)
+      .then((d) => {
+        if (seq !== countSeq.current) return; // a newer pick is loading
+        // ORIGINAL: setAutoCount({ count: Number(d.count) || 0, label: d.label || "" });
+        // ORIGINAL: setCount(String(Number(d.count) || 0));
+        // UPDATED: count = project's "How much data in CRM"; null = not filled -> leave Count empty
+        if (d.count === null || d.count === undefined) {
+          setAutoCount({ count: null, label: d.label || "" });
+          setCount("");
+        } else {
+          setAutoCount({ count: Number(d.count) || 0, label: d.label || "" });
+          setCount(String(Number(d.count) || 0));
+        }
+      })
+      .catch(() => { if (seq === countSeq.current) setAutoCount(null); })
+      .finally(() => { if (seq === countSeq.current) setCountLoading(false); });
+  }, [pickedProject, telecallerId]);
+
   // close the dropdown when tapping outside it
   useEffect(() => {
     if (!open) return;
@@ -127,6 +158,7 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
       );
       setSelected([]);
       setCount("");
+      setAutoCount(null); // ADDED
       setSendDate("");
       // ADDED
       setReadCount(""); setDeliveredCount(""); setFailedCount("");
@@ -203,8 +235,23 @@ export default function WhatsAppForm({ channel, channelKey, onSaved }) {
             inputMode="numeric"
             value={count}
             onChange={(e) => setCount(e.target.value.replace(/\D/g, ""))}
-            placeholder="Enter number"
+            // ORIGINAL: placeholder="Enter number"
+            placeholder={countLoading ? "Counting..." : "Enter number"}
           />
+          {/* ADDED: where the automatic count came from */}
+          {/* ADDED: project has no "How much data in CRM" number yet */}
+          {autoCount && !countLoading && autoCount.count === null && (
+            <div className="wa-count-hint missing">{autoCount.label}. Please type the count.</div>
+          )}
+          {/* ORIGINAL: {autoCount && !countLoading && ( */}
+          {autoCount && !countLoading && autoCount.count !== null && (
+            <div className={`wa-count-hint${String(autoCount.count) !== count ? " changed" : ""}`}>
+              {String(autoCount.count) === count
+                // ORIGINAL: ? <>Auto: <b>{autoCount.count}</b> {autoCount.label}</>
+                ? <>Auto: <b>{autoCount.count}</b> ({autoCount.label})</>
+                : <>Changed by you · auto was <b>{autoCount.count}</b> <button type="button" onClick={() => setCount(String(autoCount.count))}>use {autoCount.count}</button></>}
+            </div>
+          )}
         </div>
 
         {/* ADDED: Sending date */}

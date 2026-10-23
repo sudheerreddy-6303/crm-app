@@ -59,7 +59,9 @@ export default function ProjectViewModal({ project: p, onClose }) {
       // ADDED
       ["No. of towers", p.total_towers ?? 0], // ORIGINAL label: How many towers
       ["No. of flats", p.total_flats ?? 0], // ORIGINAL label: How many flats
-      ["How much data in CRM", p.crm_data_count ?? 0],
+      // ORIGINAL: ["How much data in CRM", p.crm_data_count ?? 0],
+      // UPDATED: live count of this project's leads in the CRM
+      ["How much data in CRM", p.crm_leads_count ?? p.crm_data_count ?? 0],
     ]],
     ["Record", [
       ["Added by", val(p.created_by_name)],

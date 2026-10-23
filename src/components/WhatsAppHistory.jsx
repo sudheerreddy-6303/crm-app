@@ -30,14 +30,20 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
+// ORIGINAL: export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
+// UPDATED: optional fixedTelecallerId - shows only that telecaller's requests
+// (used on the Dashboard when admin is viewing one telecaller's dashboard)
+export default function WhatsAppHistory({ channel, channelKey, reloadKey, fixedTelecallerId = null }) {
   const user = getUser();
   const isAdmin = user?.role === "admin";
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [telecallers, setTelecallers] = useState([]);
-  const [tcFilter, setTcFilter] = useState("");
+  // ORIGINAL: const [tcFilter, setTcFilter] = useState("");
+  const [tcFilter, setTcFilter] = useState(fixedTelecallerId ? String(fixedTelecallerId) : "");
+  // ADDED: keep the fixed telecaller when the dashboard switches telecaller
+  useEffect(() => { setTcFilter(fixedTelecallerId ? String(fixedTelecallerId) : ""); }, [fixedTelecallerId]);
   // ADDED: more filters (worked on the loaded history)
   const [projectFilter, setProjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -105,8 +111,11 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
   });
   // ADDED: history cards - 2 rows per page + page numbers
   const histPaging = useClientTwoRowPaging(shown, true);
-  const anyFilter = Boolean(tcFilter || projectFilter || statusFilter || dateFrom || dateTo);
-  const clearFilters = () => { setTcFilter(""); setProjectFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); };
+  // ORIGINAL: const anyFilter = Boolean(tcFilter || projectFilter || statusFilter || dateFrom || dateTo);
+  // ORIGINAL: const clearFilters = () => { setTcFilter(""); setProjectFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); };
+  // UPDATED: a fixed telecaller is not a filter the user can clear
+  const anyFilter = Boolean((tcFilter && !fixedTelecallerId) || projectFilter || statusFilter || dateFrom || dateTo);
+  const clearFilters = () => { if (!fixedTelecallerId) setTcFilter(""); setProjectFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); };
   const exportRows = () => downloadExcel([{
     name: `${channel} history`,
     // UPDATED: exports what the filters show; "Saved on" in India time
@@ -143,7 +152,8 @@ export default function WhatsAppHistory({ channel, channelKey, reloadKey }) {
 
       {/* ADDED: filters bar */}
       <div className="wa-filters">
-        {isAdmin && (
+        {/* ORIGINAL: {isAdmin && ( - UPDATED: hidden when a telecaller is fixed */}
+        {isAdmin && !fixedTelecallerId && (
           <div>
             <label>Telecaller</label>
             <select value={tcFilter} onChange={(e) => setTcFilter(e.target.value)} aria-label="Filter by telecaller">

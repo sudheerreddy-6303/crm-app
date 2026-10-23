@@ -5,6 +5,8 @@ import { api, getUser } from "../api.js";
 import { phoneText } from "../utils/maskPhone.js";
 // ADDED: admin "Export to Excel" (shared helper + button)
 import ExportButton from "../components/ExportButton.jsx";
+// ADDED: WhatsApp history cards (same cards as the Meta / Bulk WhatsApp pages)
+import WhatsAppHistory from "../components/WhatsAppHistory.jsx";
 import { downloadExcel, d10 } from "../utils/exportExcel.js";
 
 // UPDATED: optional asUser prop ({ id, name }). When the admin opens a
@@ -19,6 +21,8 @@ export default function Dashboard({ asUser = null } = {}) {
   // the same view as the admin's telecaller page / the telecaller's own login.
   const realUser = getUser();
   const realIsAdmin = !asUser && realUser?.role === "admin";
+  // ADDED: WhatsApp section on the dashboard - Meta / Bulk tab
+  const [waTab, setWaTab] = useState("meta");
   // remembered for this browser tab, so the choice is kept after Back
   const [tcId, setTcIdState] = useState(() => {
     try { return (!asUser && sessionStorage.getItem("dash_tc")) || ""; } catch (e) { return ""; }
@@ -276,6 +280,27 @@ export default function Dashboard({ asUser = null } = {}) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ADDED: WhatsApp cards on the dashboard, right below the number cards (Meta / Bulk) - same cards, filters,
+          Read/Delivered/Failed and Export as the WhatsApp pages */}
+      <div className="card dash-wa">
+        <div className="dash-wa-head">
+          <h3 style={{ margin: 0 }}>💬 WhatsApp</h3>
+          <div className="view-toggle" role="group" aria-label="WhatsApp type">
+            <button type="button" className={`btn small ${waTab === "meta" ? "" : "secondary"}`} onClick={() => setWaTab("meta")}>Meta WhatsApp</button>
+            <button type="button" className={`btn small ${waTab === "bulk" ? "" : "secondary"}`} onClick={() => setWaTab("bulk")}>Bulk WhatsApp</button>
+          </div>
+          <Link className="dash-wa-open" to={waTab === "meta" ? "/whatsapp/meta" : "/whatsapp/bulk"}>+ New {waTab === "meta" ? "Meta" : "Bulk"} request →</Link>
+        </div>
+        <WhatsAppHistory
+          key={waTab}
+          channel={waTab === "meta" ? "Meta WhatsApp" : "Bulk WhatsApp"}
+          channelKey={waTab}
+          reloadKey={0}
+          // admin viewing one telecaller's dashboard -> only that telecaller's requests
+          fixedTelecallerId={realIsAdmin || asUser ? (viewAs ? viewAs.id : null) : null}
+        />
       </div>
 
       {user.role === "admin" && (

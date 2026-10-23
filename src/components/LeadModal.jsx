@@ -200,11 +200,14 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           </div>
           <div>
             <label>Priority</label>
-            <select value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+            {/* ORIGINAL: <select value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+                  <option value="none">None</option> <option value="hot">Hot</option> <option value="warm">Warm</option> <option value="cold">Cold</option> */}
+            {/* UPDATED: the chosen priority is shown in colour so Hot / Warm / Cold is clear */}
+            <select className={`prio-select ${form.priority || "none"}`} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
               <option value="none">None</option>
-              <option value="hot">Hot</option>
-              <option value="warm">Warm</option>
-              <option value="cold">Cold</option>
+              <option value="hot">🔥 Hot</option>
+              <option value="warm">☀️ Warm</option>
+              <option value="cold">❄️ Cold</option>
             </select>
           </div>
           {isAdmin && (

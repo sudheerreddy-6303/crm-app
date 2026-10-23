@@ -734,3 +734,27 @@ input.phone-locked { background: #f1f3f2; color: var(--ink); -webkit-text-fill-c
 .lead-card .lc-actions .btn { white-space: nowrap; }
 .lead-card .lc-actions:has(.sc-assign-btn) { gap: 5px; }
 .lead-card .lc-actions:has(.sc-assign-btn) .btn { padding-left: 9px; padding-right: 9px; }
+
+/* ADDED: WhatsApp form - automatic Count note */
+.wa-count-hint { margin-top: 5px; font-size: 12px; color: var(--green-ink, #14532d); }
+.wa-count-hint.changed { color: var(--ink-soft, #6b7280); }
+.wa-count-hint button { border: none; background: none; color: var(--brand, #1f5c3a); text-decoration: underline; cursor: pointer; font: inherit; padding: 0 0 0 4px; }
+.wa-count-hint.missing { color: #b45309; }
+
+/* ADDED: Dashboard - WhatsApp cards section */
+.dash-wa .wa-history { margin-top: 10px; }
+.dash-wa-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dash-wa-open { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--brand); text-decoration: none; }
+.dash-wa-open:hover { text-decoration: underline; }
+@media (max-width: 600px) { .dash-wa-open { margin-left: 0; width: 100%; } }
+
+/* ADDED: clear Hot / Warm / Cold priority (lead cards, tables, view, form) */
+.prio-badge { display: inline-flex; align-items: center; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; vertical-align: middle; line-height: 1.5; }
+.prio-badge.hot { background: #fde2e1; color: #b71c1c; border: 1px solid #f5b5b1; }
+.prio-badge.warm { background: #fff1d6; color: #9a5b00; border: 1px solid #f7cf7a; }
+.prio-badge.cold { background: #e3eefc; color: #0d47a1; border: 1px solid #b3cdf3; }
+.lead-card .lc-name { flex-wrap: wrap; row-gap: 4px; }
+.prio-select.hot { background: #fde2e1; color: #b71c1c; border-color: #e57373; font-weight: 700; }
+.prio-select.warm { background: #fff1d6; color: #9a5b00; border-color: #f0b64a; font-weight: 700; }
+.prio-select.cold { background: #e3eefc; color: #0d47a1; border-color: #7aa7e6; font-weight: 700; }
+.prio-select option { background: #fff; color: #1f2a24; font-weight: 400; }

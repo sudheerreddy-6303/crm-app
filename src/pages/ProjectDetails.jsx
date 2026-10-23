@@ -190,7 +190,7 @@ export default function ProjectDetails() {
                 "Last call": d10(p.last_calling_date), "Units booked (interiors)": Number(p.units_booked_interiors || 0),
                 "Units sold": Number(p.units_sold || 0),
                 // ADDED: towers / flats / data in CRM count
-                "No. of towers": Number(p.total_towers || 0), "No. of flats": Number(p.total_flats || 0), "Data in CRM (count)": Number(p.crm_data_count || 0),
+                "No. of towers": Number(p.total_towers || 0), "No. of flats": Number(p.total_flats || 0), "Data in CRM (count)": Number(p.crm_leads_count ?? p.crm_data_count ?? 0), // UPDATED: live count (ORIGINAL: Number(p.crm_data_count || 0))
                 "Added by": p.created_by_name || "", "Created": d10(p.created_at),
               })), numberCols: ["Rounds called", "Units booked (interiors)", "Units sold", "No. of towers", "No. of flats", "Data in CRM (count)"] },
               { name: "Projects summary", rows: summary.map((p) => ({
@@ -324,7 +324,9 @@ export default function ProjectDetails() {
                 {/* ORIGINAL labels: Towers / Flats */}
                 <span>No. of towers</span><b>{p.total_towers ?? 0}</b>
                 <span>No. of flats</span><b>{p.total_flats ?? 0}</b>
-                <span>Data in CRM (count)</span><b>{p.crm_data_count ?? 0}</b>
+                {/* ORIGINAL: <span>Data in CRM (count)</span><b>{p.crm_data_count ?? 0}</b> */}
+                {/* UPDATED: live count of this project's leads in the CRM (same as the Projects summary cards) */}
+                <span>Data in CRM (count)</span><b>{p.crm_leads_count ?? p.crm_data_count ?? 0}</b>
               </div>
               {p.address && (
                 <div className="lc-remarks"><div><span>Address:</span> {p.address}</div></div>

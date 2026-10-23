@@ -10,6 +10,8 @@ import { cardPhone } from "../utils/maskPhone.js";
 import { uploadCv, openCv, removeCv, CV_ACCEPT, CV_MAX_MB } from "../utils/serviceCallCv.js";
 import { showPopup } from "./Popup.jsx";
 import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
+// ADDED: Telangana + Andhra Pradesh cities, and areas of each city for Location
+import { TS_CITIES, AP_CITIES, areasFor } from "../utils/apTsCities.js";
 
 // ADDED: extra section shown only when Category = "Interior Designer"
 export const DESIGNER_CATEGORY = "Interior Designer";
@@ -18,7 +20,12 @@ const d10 = (v) => (v ? String(v).slice(0, 10) : "");
 
 // ADDED: City dropdown = "Hyderabad" + all Hyderabad areas; "Other" lets you type
 // any other city (existing values like "anantapur" keep working).
-const CITY_OPTIONS = ["Hyderabad", ...HYDERABAD_AREAS];
+// ORIGINAL: const CITY_OPTIONS = ["Hyderabad", ...HYDERABAD_AREAS];
+// UPDATED: all Telangana (TS) + Andhra Pradesh (AP) cities. Old records saved with a
+// Hyderabad area as the city still show it (as "Other"), nothing is lost.
+const CITY_OPTIONS = [...TS_CITIES, ...AP_CITIES];
+// ADDED: "Other (type location)" value in the Location dropdown
+const LOC_OTHER = "__other_location__";
 const CITY_OTHER = "__other__";
 // match ignoring capitals / spaces, so a saved "hyderabad" selects "Hyderabad"
 const cityMatch = (v) => CITY_OPTIONS.find((c) => c.toLowerCase() === String(v || "").trim().toLowerCase()) || "";
@@ -134,6 +141,21 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
   // ADDED: true while "Other (type city)" is chosen in the City dropdown
   const [cityOther, setCityOther] = useState(false);
   const cityIsOther = cityOther || (form.city && !cityMatch(form.city));
+  // ADDED: Location follows the City - a dropdown of that city's areas
+  // (Hyderabad, Secunderabad, Visakhapatnam, Vijayawada, Guntur, Tirupati, Warangal);
+  // other cities keep the normal text box. "Other" lets you type any location.
+  const locAreas = cityIsOther ? [] : areasFor(form.city);
+  const [locOther, setLocOther] = useState(false);
+  const locMatch = locAreas.find((a) => a.toLowerCase() === String(form.location || "").trim().toLowerCase()) || "";
+  const locIsOther = locOther || Boolean(form.location && !locMatch);
+  // when the City changes, a location from the old city's list is cleared
+  const onCityPicked = (city) => {
+    set("city", city);
+    setLocOther(false);
+    const newAreas = areasFor(city);
+    const cur = String(form.location || "").trim().toLowerCase();
+    if (cur && newAreas.length && !newAreas.some((a) => a.toLowerCase() === cur)) set("location", "");
+  };
 
   // ADDED: Interior Designer details (kept separate from the original form fields)
   const [designer, setDesigner] = useState(() => toDesigner(call));
@@ -196,6 +218,7 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     setCvName("");
     setCvFile(null);
     setCityOther(false);
+    setLocOther(false); // ADDED
     setError("");
   };
 
@@ -350,11 +373,20 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
               value={cityIsOther ? CITY_OTHER : cityMatch(form.city)}
               onChange={(e) => {
                 if (e.target.value === CITY_OTHER) { setCityOther(true); if (cityMatch(form.city)) set("city", ""); }
-                else { setCityOther(false); set("city", e.target.value); }
+                // ORIGINAL: else { setCityOther(false); set("city", e.target.value); }
+                else { setCityOther(false); onCityPicked(e.target.value); }
               }}
             >
-              <option value="">Select city / area</option>
-              {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              {/* ORIGINAL: <option value="">Select city / area</option> */}
+              <option value="">Select city</option>
+              {/* ORIGINAL: {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)} */}
+              {/* UPDATED: grouped by state */}
+              <optgroup label="Telangana">
+                {TS_CITIES.map((c) => <option key={`ts-${c}`} value={c}>{c}</option>)}
+              </optgroup>
+              <optgroup label="Andhra Pradesh">
+                {AP_CITIES.map((c) => <option key={`ap-${c}`} value={c}>{c}</option>)}
+              </optgroup>
               <option value={CITY_OTHER}>Other (type city)</option>
             </select>
             {cityIsOther && (
@@ -363,7 +395,29 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
           </div>
           <div>
             <label>Location</label>
-            <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location / area" />
+            {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location / area" /> */}
+            {/* UPDATED: areas of the chosen city (when we have a list for it) */}
+            {locAreas.length > 0 ? (
+              <>
+                <select
+                  value={locIsOther ? LOC_OTHER : locMatch}
+                  onChange={(e) => {
+                    if (e.target.value === LOC_OTHER) { setLocOther(true); if (locMatch) set("location", ""); }
+                    else { setLocOther(false); set("location", e.target.value); }
+                  }}
+                >
+                  <option value="">Select location in {cityMatch(form.city)}</option>
+                  {locAreas.map((a) => <option key={a} value={a}>{a}</option>)}
+                  <option value={LOC_OTHER}>Other (type location)</option>
+                </select>
+                {locIsOther && (
+                  <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location" autoFocus={locOther && !form.location} />
+                )}
+              </>
+            ) : (
+              <input value={form.location} onChange={(e) => set("location", e.target.value)}
+                placeholder={form.city ? `Location / area in ${form.city}` : "Select city first, or type location"} />
+            )}
           </div>
           <div>
             <label>Experience</label>
