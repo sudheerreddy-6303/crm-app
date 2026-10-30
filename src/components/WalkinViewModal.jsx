@@ -1,4 +1,6 @@
 import React from "react";
+// ADDED: Hot / Warm / Cold / Dead label
+import PriorityBadge from "./PriorityBadge.jsx";
 // ADDED: phone numbers hidden for telecallers (xxxxxxx789), full for admin
 // UPDATED: phone numbers hidden for everyone here (cardPhone). PREVIOUS: import { phoneText } ...
 import { cardPhone } from "../utils/maskPhone.js";
@@ -14,7 +16,9 @@ const fmtDateTime = (d) => {
 };
 const val = (v) => (v === null || v === undefined || String(v).trim() === "" ? "-" : v);
 
-export default function WalkinViewModal({ walkin: w, onClose }) {
+// ORIGINAL: export default function WalkinViewModal({ walkin: w, onClose }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function WalkinViewModal({ walkin: w, onClose, onDelete }) {
   const sections = [
     ["Customer", [
       ["Name", val(w.name)], ["Phone number", val(cardPhone(w.phone))], ["Alt. mobile", val(cardPhone(w.alt_phone))], /* PREVIOUS: phoneText */ // ORIGINAL: val(w.phone), val(w.alt_phone)
@@ -25,7 +29,22 @@ export default function WalkinViewModal({ walkin: w, onClose }) {
       ["Attended by", val(w.attended_by)], ["Remarks", val(w.remarks)],
     ]],
     ["Address", [
-      ["Location", val(w.site_location)], ["City", val(w.city)], ["Address", val(w.address)],
+      // ORIGINAL: ["Location", val(w.site_location)], ["City", val(w.city)], ["Address", val(w.address)],
+      // UPDATED: + State (order State -> City -> Location like the form)
+      ["State", val(w.state)], ["City", val(w.city)], ["Location", val(w.site_location)], ["Address", val(w.address)],
+    ]],
+    // ADDED: same fields as the Add lead form
+    ["Lead details", [
+      ["Project type", val(w.project_type)], ["Assigned telecaller", val(w.assigned_to_name)],
+      ["1st calling date", fmtDate(w.first_calling_date)], ["2nd calling date", fmtDate(w.second_calling_date)], ["3rd calling date", fmtDate(w.third_calling_date)],
+      ["Call category", val(w.call_category)], ["Quote sent", val(w.quote_sent)], ["Order booked", val(w.order_booked)],
+      ["Revenue booked (₹)", w.revenue_booked !== null && w.revenue_booked !== undefined && w.revenue_booked !== "" ? Number(w.revenue_booked).toLocaleString("en-IN") : "-"],
+      ["WhatsApp message sent on", fmtDate(w.whatsapp_sent_date)], ["WhatsApp category", val(w.whatsapp_category)],
+      ["Next call date", fmtDate(w.next_call_date)],
+      ["Priority", w.priority && w.priority !== "none" ? <PriorityBadge priority={w.priority} /> : "-"],
+      ["Source", val(w.source)], ["Calling remark", val(w.calling_remark)],
+      ["Call 1 remark", val(w.call_remark_1)], ["Call 2 remark", val(w.call_remark_2)], ["Call 3 remark", val(w.call_remark_3)],
+      ["WhatsApp 1 sent date", fmtDate(w.whatsapp_date_1)], ["WhatsApp 2 sent date", fmtDate(w.whatsapp_date_2)], ["WhatsApp 3 sent date", fmtDate(w.whatsapp_date_3)],
     ]],
     ["Record", [
       ["Converted to lead", w.converted_lead_id ? "Yes" : "No"], ["Added by", val(w.created_by_name)],
@@ -45,7 +64,12 @@ export default function WalkinViewModal({ walkin: w, onClose }) {
             </div>
           </div>
         ))}
-        <div className="actions"><button className="btn secondary" onClick={onClose}>Close</button></div>
+        {/* ORIGINAL: <div className="actions"><button className="btn secondary" onClick={onClose}>Close</button></div> */}
+        <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the walk-in card */}
+          {onDelete && <button type="button" className="btn danger form-del-btn" onClick={() => onDelete(w)}>🗑 Delete</button>}
+          <button className="btn secondary" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   );

@@ -181,6 +181,7 @@ export default function ServiceCalls() {
       flash("success", "Service call deleted");
       load();
       loadStats(); // ADDED: refresh category cards
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       flash("error", e.message);
     }
@@ -406,7 +407,8 @@ export default function ServiceCalls() {
                 <button className="btn small secondary" onClick={() => setModalCall(c)}>Edit</button>
                 {/* ADDED: Assign to telecaller - admin only */}
                 {isAdmin && <button className="btn small secondary sc-assign-btn" onClick={() => setAssignCall(c)}>{c.assigned_to ? "Reassign" : "Assign"}</button>}
-                {isAdmin && <button className="btn small danger" onClick={() => remove(c)}>Delete</button>}
+                {/* REMOVED from the card on request - Delete is now inside the Edit form (admin only):
+                {isAdmin && <button className="btn small danger" onClick={() => remove(c)}>Delete</button>} */}
               </div>
             </div>
           ))}
@@ -517,6 +519,8 @@ export default function ServiceCalls() {
       {modalCall && (
         <ServiceCallModal
           call={modalCall}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await remove(rec)) setModalCall(null); } : undefined}
           // ORIGINAL: onClose={() => setModalCall(null)}
           // UPDATED: refresh the category lists (a category may have been added)
           onClose={() => { setModalCall(null); loadCustomCats(); loadStats(); }}

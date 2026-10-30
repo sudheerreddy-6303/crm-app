@@ -1,4 +1,6 @@
 import React from "react";
+// ADDED: Image of project
+import ProjectImage from "./ProjectImage.jsx";
 // ADDED: hide phone numbers (xxxxxxx963)
 // UPDATED: hidden for telecallers only
 // PREVIOUS: import { maskPhone } from "../utils/maskPhone.js";
@@ -34,6 +36,8 @@ export default function ProjectViewModal({ project: p, onClose }) {
       ["Project name", val(p.project_name)],
       ["Type", val(p.type)],
       ["Status", val(p.status)],
+      // ADDED: State / City
+      ["State", val(p.state)], ["City", val(p.city)],
       ["Location", val(p.location)],
       ["Address", val(p.address)],
     ]],
@@ -75,6 +79,8 @@ export default function ProjectViewModal({ project: p, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
         <h3>Project details — {p.project_name}</h3>
+        {/* ADDED: Image of project */}
+        <ProjectImage project={p} className="proj-img proj-img-view" />
 
         {sections.map(([title, rows]) => (
           <div className="lv-section" key={title}>

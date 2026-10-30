@@ -72,6 +72,7 @@ export default function BusinessPartners() {
       await api(`/business-partners/${p.id}`, { method: "DELETE" });
       flash("success", "Record deleted");
       load();
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       flash("error", e.message);
     }
@@ -235,9 +236,10 @@ export default function BusinessPartners() {
               )}
               <div className="lc-actions">
                 <button className="btn small secondary" onClick={() => setModalPartner(p)}>Edit</button>
+                {/* REMOVED from the card on request - Delete is now inside the Edit form (admin only):
                 {isAdmin && (
                   <button className="btn small danger" onClick={() => remove(p)}>Delete</button>
-                )}
+                )} */}
               </div>
             </div>
           ))}
@@ -325,6 +327,8 @@ export default function BusinessPartners() {
         <BusinessPartnerModal
           partner={modalPartner}
           onClose={() => setModalPartner(null)}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await remove(rec)) setModalPartner(null); } : undefined}
           onSaved={() => {
             setModalPartner(null);
             flash("success", modalPartner.id ? "Record updated" : "Record added");

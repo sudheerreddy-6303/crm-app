@@ -1,6 +1,8 @@
 // ORIGINAL: import React, { useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+// ADDED: State -> City -> Location (Telangana / Andhra Pradesh) - same in every form
+import StateCityLocation from "./StateCityLocation.jsx";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
 // ADDED: hide the number on the "already saved" card (xxxxxxx789)
@@ -8,8 +10,8 @@ import { cardPhone } from "../utils/maskPhone.js";
 // ADDED: pop-up when a required field is missing
 import { showPopup } from "./Popup.jsx";
 // ADDED: Hyderabad areas for the Location dropdown
-import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
-const OTHER_LOCATION = "__other__";
+// ORIGINAL (not needed now - Location is in StateCityLocation): import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
+// ORIGINAL (not needed now): const OTHER_LOCATION = "__other__";
 
 // ADDED: Business Associates & Franchise add/edit modal - opened by the "+ Add"
 // button on the Business Associates & Franchise page. Same pattern as WalkinModal.
@@ -26,7 +28,7 @@ export const PARTNER_CATEGORIES = [
 // ADDED: form values from a saved record (used when a typed number is already saved)
 const fromPartner = (p) => ({
   person_name: p.person_name || "", contact: p.contact || "", owner_name: p.owner_name || "",
-  business_name: p.business_name || "", location: p.location || "", whatsapp: p.whatsapp || "",
+  business_name: p.business_name || "", location: p.location || "", state: p.state || "", city: p.city || "" /* ADDED */, whatsapp: p.whatsapp || "",
   call_remark_1: p.call_remark_1 || "", call_remark_2: p.call_remark_2 || "", category: p.category || "",
   calling_date: p.calling_date ? String(p.calling_date).slice(0, 10) : "",
   whatsapp_sent_date: p.whatsapp_sent_date ? String(p.whatsapp_sent_date).slice(0, 10) : "",
@@ -35,7 +37,34 @@ const fromPartner = (p) => ({
 });
 const digitsOf = (v) => String(v || "").replace(/\D/g, "");
 
-export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
+// ORIGINAL (Business associate Location dropdown) - replaced by <StateCityLocation /> (State -> City -> Location):
+//           <div>
+//             <label>Location <span className="req">*</span></label>
+//             {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / city" />
+//                 UPDATED: Hyderabad areas dropdown. "Other" shows a text box for any
+//                 other place - existing records with a full address keep working. */}
+//             <select
+//               value={locOther || (form.location && !HYDERABAD_AREAS.includes(form.location)) ? OTHER_LOCATION : form.location}
+//               onChange={(e) => {
+//                 if (e.target.value === OTHER_LOCATION) { setLocOther(true); if (HYDERABAD_AREAS.includes(form.location)) set("location", ""); }
+//                 else { setLocOther(false); set("location", e.target.value); }
+//               }}
+//             >
+//               <option value="">Select location</option>
+//               {HYDERABAD_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+//               <option value={OTHER_LOCATION}>Other (type location)</option>
+//             </select>
+//             {(locOther || (form.location && !HYDERABAD_AREAS.includes(form.location))) && (
+//               <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location / address" autoFocus={locOther && !form.location} />
+//             )}
+//           </div>
+
+// ORIGINAL lines (before they were updated) - kept here word for word for reference:
+//   business_name: p.business_name || "", location: p.location || "", whatsapp: p.whatsapp || "",
+
+// ORIGINAL: export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function BusinessPartnerModal({ partner, onClose, onSaved, onDelete }) {
   // ORIGINAL: const isNew = !partner.id;
   // UPDATED: when a typed number is already saved, the form switches to editing
   // THAT record (existing.id) - saving updates it, no duplicate.
@@ -44,7 +73,8 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
   const editId = partner.id || (existing && existing.id) || null;
   const isNew = !editId;
   // ADDED: true while "Other (type location)" is chosen in the Location dropdown
-  const [locOther, setLocOther] = useState(false);
+  // ORIGINAL: const [locOther, setLocOther] = useState(false);
+  const [, setLocOther] = useState(false); // kept so the existing reset calls still work
   const [form, setForm] = useState({
     person_name: partner.person_name || "",
     contact: partner.contact || "",
@@ -52,6 +82,9 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
     owner_name: partner.owner_name || "",
     business_name: partner.business_name || "",
     location: partner.location || "",
+    // ADDED
+    state: partner.state || "",
+    city: partner.city || "",
     whatsapp: partner.whatsapp || "",
     call_remark_1: partner.call_remark_1 || "",
     call_remark_2: partner.call_remark_2 || "",
@@ -213,26 +246,8 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
             <label>Business name</label>
             <input value={form.business_name} onChange={(e) => set("business_name", e.target.value)} placeholder="Company / firm name" />
           </div>
-          <div>
-            <label>Location <span className="req">*</span></label>
-            {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / city" />
-                UPDATED: Hyderabad areas dropdown. "Other" shows a text box for any
-                other place - existing records with a full address keep working. */}
-            <select
-              value={locOther || (form.location && !HYDERABAD_AREAS.includes(form.location)) ? OTHER_LOCATION : form.location}
-              onChange={(e) => {
-                if (e.target.value === OTHER_LOCATION) { setLocOther(true); if (HYDERABAD_AREAS.includes(form.location)) set("location", ""); }
-                else { setLocOther(false); set("location", e.target.value); }
-              }}
-            >
-              <option value="">Select location</option>
-              {HYDERABAD_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
-              <option value={OTHER_LOCATION}>Other (type location)</option>
-            </select>
-            {(locOther || (form.location && !HYDERABAD_AREAS.includes(form.location))) && (
-              <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location / address" autoFocus={locOther && !form.location} />
-            )}
-          </div>
+          {/* ADDED: State -> City -> Location (replaces the Hyderabad-only Location dropdown; Location still required) */}
+          <StateCityLocation values={form} onChange={set} locationRequired />
           <div>
             <label>WhatsApp number</label>
             {/* ORIGINAL: <input value={form.whatsapp} ... placeholder="WhatsApp number" /> */}
@@ -277,6 +292,10 @@ export default function BusinessPartnerModal({ partner, onClose, onSaved }) {
         </div>
 
         <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the card */}
+          {onDelete && !isNew && (
+            <button type="button" className="btn danger form-del-btn" onClick={() => onDelete({ ...partner, ...form, id: editId })}>🗑 Delete</button>
+          )}
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={saving}>
             {saving ? "Saving..." : isNew ? "Add" : "Save changes"}

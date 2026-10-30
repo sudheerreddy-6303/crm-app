@@ -1,6 +1,9 @@
 // UPDATED: useCallback added (for the call-history loader)
-import React, { useCallback, useEffect, useState } from "react";
+// ORIGINAL: import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+// ADDED: State -> City -> Location (Telangana / Andhra Pradesh) - same in every form
+import StateCityLocation from "./StateCityLocation.jsx";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
 // ADDED: call history with admin replies (responsive)
@@ -11,7 +14,49 @@ const CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"]
 const PROJECT_TYPES = ["2BHK", "3BHK", "4BHK", "Villa", "Commercial", "Others"];
 const fmt = (d) => (d ? String(d).slice(0, 10) : "");
 
-export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved }) {
+// ORIGINAL fields - replaced by one "Call date" + "Call remark" (each change is kept in Call history).
+// Saved values of these fields stay in the database. Kept word for word for reference:
+// --- 1st / 2nd / 3rd calling date ---
+//           <div>
+//             <label>1st calling date</label>
+//             <input type="date" value={form.first_calling_date} onChange={(e) => set("first_calling_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>2nd calling date</label>
+//             <input type="date" value={form.second_calling_date} onChange={(e) => set("second_calling_date", e.target.value)} />
+//           </div>
+//           {/* ADDED: 3rd calling date */}
+//           <div>
+//             <label>3rd calling date</label>
+//             <input type="date" value={form.third_calling_date} onChange={(e) => set("third_calling_date", e.target.value)} />
+//           </div>
+// --- Calling remark box ---
+//         <div style={{ marginTop: 14 }}>
+//           <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", marginBottom: 4 }}>
+//             Calling remark
+//           </label>
+//           <textarea
+//             style={{ width: "100%", padding: "9px 10px", border: "1px solid var(--line)", borderRadius: 8 }}
+//             value={form.calling_remark}
+//             onChange={(e) => set("calling_remark", e.target.value)}
+//             placeholder="e.g. she wants designs (guntur 4bhk) (sent)"
+//           />
+//         </div>
+// --- Call 1 / 2 / 3 remark ---
+//           {[1, 2, 3].map((n) => (
+//             <div key={`cr${n}`}>
+//               <label>Call {n} remark</label>
+//               <input
+//                 value={form[`call_remark_${n}`]}
+//                 onChange={(e) => set(`call_remark_${n}`, e.target.value)}
+//                 placeholder={`Remark for call ${n}`}
+//               />
+//             </div>
+//           ))}
+
+// ORIGINAL: export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved, onDelete }) {
   const isNew = !lead.id;
   const [form, setForm] = useState({
     name: lead.name || "",
@@ -24,11 +69,17 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     // ADDED: Revenue booked (amount in rupees)
     revenue_booked: lead.revenue_booked === null || lead.revenue_booked === undefined ? "" : String(Number(lead.revenue_booked)),
     primary_phone: lead.primary_phone || "",
+    // ADDED: State -> City -> Location
+    state: lead.state || "",
+    city: lead.city || "",
+    location: lead.location || "",
     assigned_to: lead.assigned_to || "",
     first_calling_date: fmt(lead.first_calling_date),
     second_calling_date: fmt(lead.second_calling_date),
     // ADDED: 3rd calling date
     third_calling_date: fmt(lead.third_calling_date),
+    // ADDED: current Call date (today when the lead has none yet)
+    call_date: fmt(lead.call_date) || new Date().toLocaleDateString("en-CA"),
     call_category: lead.call_category || "",
     quote_sent: lead.quote_sent || "",
     order_booked: lead.order_booked || "",
@@ -67,6 +118,17 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  // ADDED: the Call date is only sent when it was changed, or when this is a new call
+  // (remark / category changed) - so opening and saving the form does not add history by itself
+  const callDateTouched = useRef(false);
+  const withCallDate = (f) => {
+    const isNewCall = callDateTouched.current
+      || (f.calling_remark || "") !== (lead.calling_remark || "")
+      || (f.call_category || "") !== (lead.call_category || "");
+    if (isNewCall) return f;
+    const { call_date, ...rest } = f; // eslint-disable-line no-unused-vars
+    return rest;
+  };
 
   const save = async () => {
     setError("");
@@ -76,9 +138,11 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
     setSaving(true);
     try {
       if (isNew) {
-        await api("/leads", { method: "POST", body: JSON.stringify(form) });
+        // ORIGINAL: await api("/leads", { method: "POST", body: JSON.stringify(form) });
+        await api("/leads", { method: "POST", body: JSON.stringify(withCallDate(form)) });
       } else {
-        await api(`/leads/${lead.id}`, { method: "PUT", body: JSON.stringify(form) });
+        // ORIGINAL: await api(`/leads/${lead.id}`, { method: "PUT", body: JSON.stringify(form) });
+        await api(`/leads/${lead.id}`, { method: "PUT", body: JSON.stringify(withCallDate(form)) });
       }
       onSaved();
     } catch (e) {
@@ -140,19 +204,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
               </select>
             </div>
           )}
-          <div>
-            <label>1st calling date</label>
-            <input type="date" value={form.first_calling_date} onChange={(e) => set("first_calling_date", e.target.value)} />
-          </div>
-          <div>
-            <label>2nd calling date</label>
-            <input type="date" value={form.second_calling_date} onChange={(e) => set("second_calling_date", e.target.value)} />
-          </div>
-          {/* ADDED: 3rd calling date */}
-          <div>
-            <label>3rd calling date</label>
-            <input type="date" value={form.third_calling_date} onChange={(e) => set("third_calling_date", e.target.value)} />
-          </div>
+          {/* ADDED: State -> City -> Location of the customer */}
+          <StateCityLocation values={form} onChange={set} />
           <div>
             <label>Call category</label>
             <select value={form.call_category} onChange={(e) => set("call_category", e.target.value)}>
@@ -208,6 +261,8 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
               <option value="hot">🔥 Hot</option>
               <option value="warm">☀️ Warm</option>
               <option value="cold">❄️ Cold</option>
+              {/* ADDED */}
+              <option value="dead">⚫ Dead</option>
             </select>
           </div>
           {isAdmin && (
@@ -218,30 +273,25 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
           )}
         </div>
 
-        <div style={{ marginTop: 14 }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", marginBottom: 4 }}>
-            Calling remark
-          </label>
-          <textarea
-            style={{ width: "100%", padding: "9px 10px", border: "1px solid var(--line)", borderRadius: 8 }}
-            value={form.calling_remark}
-            onChange={(e) => set("calling_remark", e.target.value)}
-            placeholder="e.g. she wants designs (guntur 4bhk) (sent)"
-          />
+        {/* ADDED: one Call date + one Call remark. Each change is saved in Call history below
+            (replaces 1st / 2nd / 3rd calling date, Calling remark and Call 1 / 2 / 3 remark) */}
+        <div className="call-now">
+          <div className="call-now-title">📞 This call</div>
+          <div className="form-grid">
+            <div>
+              <label>Call date</label>
+              <input type="date" value={form.call_date} onChange={(e) => { callDateTouched.current = true; set("call_date", e.target.value); }} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label>Call remark</label>
+              <textarea rows={2} value={form.calling_remark} onChange={(e) => set("calling_remark", e.target.value)} placeholder="What happened on this call?" />
+            </div>
+          </div>
+          <div className="call-now-note">Each time you change the call date or remark and save, the previous one is kept in <b>Call history</b> below.</div>
         </div>
 
         {/* ADDED: 3 call remarks + 3 WhatsApp sent Yes/No */}
         <div className="form-grid" style={{ marginTop: 14 }}>
-          {[1, 2, 3].map((n) => (
-            <div key={`cr${n}`}>
-              <label>Call {n} remark</label>
-              <input
-                value={form[`call_remark_${n}`]}
-                onChange={(e) => set(`call_remark_${n}`, e.target.value)}
-                placeholder={`Remark for call ${n}`}
-              />
-            </div>
-          ))}
           {/* ORIGINAL: WhatsApp {n} sent as a Yes / No dropdown (whatsapp_sent_N)
               UPDATED: now a date picker - the date the WhatsApp was sent */}
           {[1, 2, 3].map((n) => (
@@ -264,6 +314,10 @@ export default function LeadModal({ lead, telecallers, isAdmin, onClose, onSaved
         )}
 
         <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the card */}
+          {onDelete && !isNew && (
+            <button type="button" className="btn danger form-del-btn" onClick={() => onDelete(lead)}>🗑 Delete</button>
+          )}
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={saving}>
             {saving ? "Saving..." : isNew ? "Create lead" : "Save changes"}

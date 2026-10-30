@@ -758,3 +758,31 @@ input.phone-locked { background: #f1f3f2; color: var(--ink); -webkit-text-fill-c
 .prio-select.warm { background: #fff1d6; color: #9a5b00; border-color: #f0b64a; font-weight: 700; }
 .prio-select.cold { background: #e3eefc; color: #0d47a1; border-color: #7aa7e6; font-weight: 700; }
 .prio-select option { background: #fff; color: #1f2a24; font-weight: 400; }
+
+/* ADDED: Priority "Dead" (grey) */
+.dot.dead { background: #424242; }
+.prio-badge.dead { background: #ececec; color: #424242; border: 1px solid #c9c9c9; }
+.prio-select.dead { background: #ececec; color: #424242; border-color: #9e9e9e; font-weight: 700; }
+
+/* ADDED: Delete button inside the forms (admin) - on the left, away from Save */
+.modal .actions .form-del-btn { margin-right: auto; }
+@media (max-width: 560px) { .modal .actions .form-del-btn { flex: 1 1 100%; order: 3; margin-right: 0; } }
+
+/* ADDED: walk-in form - "Lead details" section (same fields as Add lead) */
+.wl-lead-title { margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--line); font-weight: 700; color: var(--brand); }
+
+/* ADDED: Image of project */
+.proj-img { display: block; width: 100%; object-fit: cover; border-radius: 10px; background: #eef1ef; }
+.proj-img-card { height: 150px; margin-bottom: 4px; }
+.proj-img-view { max-height: 320px; object-fit: contain; margin-bottom: 14px; }
+.proj-img-loading { display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 12px; }
+.proj-img-field { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.proj-img-thumb { width: 140px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: #f3f5f4; display: block; }
+.proj-img-empty { display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 12px; }
+.proj-img-actions { flex: 1 1 200px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.proj-img-actions input[type="file"] { max-width: 100%; }
+
+/* ADDED: lead form - one Call date + Call remark ("This call") */
+.call-now { margin-top: 14px; padding: 12px; border: 1px solid #cfe6d7; background: #f3faf6; border-radius: 10px; }
+.call-now-title { font-weight: 700; color: var(--brand); margin-bottom: 8px; }
+.call-now-note { margin-top: 8px; font-size: 12px; color: var(--ink-soft); }

@@ -94,6 +94,8 @@ export default function Leads() {
     stage: searchParams.get("stage") || "",
     // ADDED: walkin=Yes comes from the telecaller dashboard "Walk-ins" card
     walkin: searchParams.get("walkin") || "",
+    // ADDED: Priority filter (hot / warm / cold / dead / none) - also from ?priority= in the URL
+    priority: searchParams.get("priority") || "",
   });
   // ADDED: project names for the filter dropdown
   const [projects, setProjects] = useState([]);
@@ -178,6 +180,7 @@ export default function Leads() {
       setMsg({ type: "success", text: "Walk-in deleted" });
       setTimeout(() => setMsg({ type: "", text: "" }), 3000);
       loadWalkinLeads();
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       setMsg({ type: "error", text: e.message });
     }
@@ -250,6 +253,7 @@ export default function Leads() {
       await api(`/leads/${id}`, { method: "DELETE" });
       flash("success", "Lead deleted");
       load();
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       flash("error", e.message);
     }
@@ -352,7 +356,13 @@ export default function Leads() {
     [filters.category === "FRESH", "Not attempt"],
     // ADDED
     // ORIGINAL: [filters.category === "NI_NA", "Not interested + Not answered"],
-    [filters.category === "NI_NA", "Connected calls"],
+    // PREVIOUS: [filters.category === "NI_NA", "Connected calls"],
+    [filters.category === "NI_NA", "Dialed calls"],
+    // ADDED: page title when only the Priority filter is used
+    [filters.priority === "hot", "Hot leads"],
+    [filters.priority === "warm", "Warm leads"],
+    [filters.priority === "cold", "Cold leads"],
+    [filters.priority === "dead", "Dead leads"],
   ];
   const activeTitles = TITLE_BY_FILTER.filter(([on]) => on).map(([, t]) => t);
   const pageTitle = filters.stage === "leads" || activeTitles.length !== 1 ? "Leads" : activeTitles[0];
@@ -403,13 +413,24 @@ export default function Leads() {
           <option value="FRESH">NOT ATTEMPT</option>
           {/* ADDED: matches the "Not interested + Not answered" dashboard card */}
           {/* ORIGINAL: <option value="NI_NA">NOT INTERESTED + NOT ANSWERED</option> */}
-          <option value="NI_NA">CONNECTED CALLS</option>
+          {/* PREVIOUS: <option value="NI_NA">CONNECTED CALLS</option> */}
+          <option value="NI_NA">DIALED CALLS</option>
         </select>
         <select value={filters.quote} onChange={(e) => { setPage(1); setFilters({ ...filters, quote: e.target.value }); }}>
           <option value="">Quote sent?</option><option>Yes</option><option>No</option>
         </select>
         <select value={filters.order} onChange={(e) => { setPage(1); setFilters({ ...filters, order: e.target.value }); }}>
           <option value="">Order booked?</option><option>Yes</option><option>No</option>
+        </select>
+        {/* ADDED: Priority filter */}
+        <select className={`prio-select ${filters.priority || "none"}`} value={filters.priority} aria-label="Filter by priority"
+          onChange={(e) => { setPage(1); setFilters({ ...filters, priority: e.target.value }); }}>
+          <option value="">Priority</option>
+          <option value="hot">🔥 Hot</option>
+          <option value="warm">☀️ Warm</option>
+          <option value="cold">❄️ Cold</option>
+          <option value="dead">⚫ Dead</option>
+          <option value="none">No priority</option>
         </select>
         {/* ADDED: project filter - also set automatically when arriving from a
             project-filtered dashboard card (via ?project= in the URL) */}
@@ -547,7 +568,8 @@ export default function Leads() {
                     UPDATED: label changed to "Follow up" on the cards - still opens the same lead form */}
                 <button className="btn small secondary" onClick={() => setModalLead(l)}>Follow up</button>
                 {/* ADDED: Delete on the card - admin only, same as the table (asks to confirm) */}
-                {isAdmin && <button className="btn small danger" onClick={() => removeLead(l.id)}>Delete</button>}
+                {/* REMOVED from the card on request - Delete is now inside the Follow up form (admin only):
+                {isAdmin && <button className="btn small danger" onClick={() => removeLead(l.id)}>Delete</button>} */}
               </div>
             </div>
           ))}
@@ -754,7 +776,8 @@ export default function Leads() {
                     <button className="btn small secondary" title={w.converted_lead_id ? "Open the lead form" : "Convert to lead and open the lead form"} onClick={() => followUpWalkin(w)}>Follow up</button>
                     {/* REMOVED from the cards on request (Edit is still in Table view):
                         <button className="btn small secondary" title="Edit walk-in details" onClick={() => setModalWalkin(w)}>Edit</button> */}
-                    <button className="btn small danger" onClick={() => removeWalkin(w)}>Delete</button>
+                    {/* REMOVED from the card on request - Delete is now inside "View" (admin only):
+                    <button className="btn small danger" onClick={() => removeWalkin(w)}>Delete</button> */}
                   </div>
                 </div>
               ))}
@@ -860,13 +883,18 @@ export default function Leads() {
       )}
 
       {/* ADDED: read-only walk-in details (walk-in cards "View") */}
-      {viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)} />}
+      {/* ORIGINAL: {viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)} />} */}
+      {/* UPDATED: + Delete inside "View" (admin only) */}
+      {viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)}
+        onDelete={isAdmin ? async (rec) => { if (await removeWalkin(rec)) setViewWalkin(null); } : undefined} />}
 
       {/* ADDED: same Walk-in edit form as the Walk-ins page */}
       {modalWalkin && (
         <WalkinModal
           walkin={modalWalkin}
           onClose={() => setModalWalkin(null)}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await removeWalkin(rec)) setModalWalkin(null); } : undefined}
           onSaved={() => { setModalWalkin(null); loadWalkinLeads(); }}
         />
       )}
@@ -882,6 +910,8 @@ export default function Leads() {
           telecallers={telecallers}
           isAdmin={isAdmin}
           onClose={() => setModalLead(null)}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await removeLead(rec.id)) setModalLead(null); } : undefined}
           // UPDATED: also refreshes the walk-in cards
           // ORIGINAL: onSaved={() => { setModalLead(null); load(); }}
           onSaved={() => { setModalLead(null); load(); loadWalkinLeads(); }}

@@ -36,6 +36,8 @@ export default function LeadViewModal({ lead, onClose }) {
       ["Primary phone", val(phoneText(lead.primary_phone))], // ORIGINAL: val(lead.primary_phone)
       ["Project", val(lead.project_name)],
       ["Project type", val(lead.project_type)],
+      // ADDED: State / City / Location
+      ["State", val(lead.state)], ["City", val(lead.city)], ["Location", val(lead.location)],
       // ORIGINAL: ["Priority", lead.priority && lead.priority !== "none" ? lead.priority : "-"],
       ["Priority", lead.priority && lead.priority !== "none" ? <PriorityBadge priority={lead.priority} /> : "-"],
       ["Source", val(lead.source)],

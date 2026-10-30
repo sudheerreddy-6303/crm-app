@@ -1,6 +1,8 @@
 // ORIGINAL: import React, { useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
 // ORIGINAL: import { api } from "../api.js";
+// ADDED: State -> City -> Location (Telangana / Andhra Pradesh) - same in every form
+import StateCityLocation from "./StateCityLocation.jsx";
 import { api, getUser } from "../api.js";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
@@ -11,7 +13,7 @@ import { uploadCv, openCv, removeCv, CV_ACCEPT, CV_MAX_MB } from "../utils/servi
 import { showPopup } from "./Popup.jsx";
 import { HYDERABAD_AREAS } from "../utils/hyderabadAreas.js";
 // ADDED: Telangana + Andhra Pradesh cities, and areas of each city for Location
-import { TS_CITIES, AP_CITIES, areasFor } from "../utils/apTsCities.js";
+// ORIGINAL (not needed now - moved into StateCityLocation): import { TS_CITIES, AP_CITIES, areasFor } from "../utils/apTsCities.js";
 
 // ADDED: extra section shown only when Category = "Interior Designer"
 export const DESIGNER_CATEGORY = "Interior Designer";
@@ -23,15 +25,18 @@ const d10 = (v) => (v ? String(v).slice(0, 10) : "");
 // ORIGINAL: const CITY_OPTIONS = ["Hyderabad", ...HYDERABAD_AREAS];
 // UPDATED: all Telangana (TS) + Andhra Pradesh (AP) cities. Old records saved with a
 // Hyderabad area as the city still show it (as "Other"), nothing is lost.
-const CITY_OPTIONS = [...TS_CITIES, ...AP_CITIES];
-// ADDED: "Other (type location)" value in the Location dropdown
-const LOC_OTHER = "__other_location__";
-const CITY_OTHER = "__other__";
-// match ignoring capitals / spaces, so a saved "hyderabad" selects "Hyderabad"
-const cityMatch = (v) => CITY_OPTIONS.find((c) => c.toLowerCase() === String(v || "").trim().toLowerCase()) || "";
+// REPLACED by <StateCityLocation /> (kept for reference):
+// const CITY_OPTIONS = [...TS_CITIES, ...AP_CITIES];
+// // ADDED: "Other (type location)" value in the Location dropdown
+// const LOC_OTHER = "__other_location__";
+// const CITY_OTHER = "__other__";
+// // match ignoring capitals / spaces, so a saved "hyderabad" selects "Hyderabad"
+// const cityMatch = (v) => CITY_OPTIONS.find((c) => c.toLowerCase() === String(v || "").trim().toLowerCase()) || "";
 const toDesigner = (c) => ({
   exp_range: c.exp_range || "",
-  interview_attended: c.interview_attended || "",
+  // ORIGINAL: interview_attended: c.interview_attended || "",
+  // UPDATED: "Attended interview?" is "No" by default for Interior Designers
+  interview_attended: c.interview_attended || "No",
   current_location: c.current_location || "",
   company_name: c.company_name || "",
   designation: c.designation || "",
@@ -52,6 +57,8 @@ export const SERVICE_CATEGORIES = [
   "Glass Work", "Marbles Work", "Tele Callers", "Sales Executive",
   "Interior Designer", "Builders", "False Ceiling", "AC Repair",
   "Printer Repair", "Chair Repair", "Site Managers",
+  // ADDED
+  "Architects",
 ];
 
 // ADDED: categories hidden from the Add / Edit service call dropdown only
@@ -67,11 +74,73 @@ const toForm = (c, phone) => ({
   category: c.category || "",
   location: c.location || "",
   city: c.city || "",
+  state: c.state || "", // ADDED
   experience: c.experience || "",
   remarks: c.remarks || "",
 });
 
-export default function ServiceCallModal({ call, onClose, onSaved }) {
+// ORIGINAL (Service call City + Location fields) - replaced by <StateCityLocation /> (State -> City -> Location):
+//           <div>
+//             <label>City</label>
+//             {/* ORIGINAL: <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+//                 UPDATED: Hyderabad areas dropdown + "Other" to type any city */}
+//             <select
+//               value={cityIsOther ? CITY_OTHER : cityMatch(form.city)}
+//               onChange={(e) => {
+//                 if (e.target.value === CITY_OTHER) { setCityOther(true); if (cityMatch(form.city)) set("city", ""); }
+//                 // ORIGINAL: else { setCityOther(false); set("city", e.target.value); }
+//                 else { setCityOther(false); onCityPicked(e.target.value); }
+//               }}
+//             >
+//               {/* ORIGINAL: <option value="">Select city / area</option> */}
+//               <option value="">Select city</option>
+//               {/* ORIGINAL: {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)} */}
+//               {/* UPDATED: grouped by state */}
+//               <optgroup label="Telangana">
+//                 {TS_CITIES.map((c) => <option key={`ts-${c}`} value={c}>{c}</option>)}
+//               </optgroup>
+//               <optgroup label="Andhra Pradesh">
+//                 {AP_CITIES.map((c) => <option key={`ap-${c}`} value={c}>{c}</option>)}
+//               </optgroup>
+//               <option value={CITY_OTHER}>Other (type city)</option>
+//             </select>
+//             {cityIsOther && (
+//               <input style={{ marginTop: 8 }} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Type city" autoFocus={cityOther && !form.city} />
+//             )}
+//           </div>
+//           <div>
+//             <label>Location</label>
+//             {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location / area" /> */}
+//             {/* UPDATED: areas of the chosen city (when we have a list for it) */}
+//             {locAreas.length > 0 ? (
+//               <>
+//                 <select
+//                   value={locIsOther ? LOC_OTHER : locMatch}
+//                   onChange={(e) => {
+//                     if (e.target.value === LOC_OTHER) { setLocOther(true); if (locMatch) set("location", ""); }
+//                     else { setLocOther(false); set("location", e.target.value); }
+//                   }}
+//                 >
+//                   <option value="">Select location in {cityMatch(form.city)}</option>
+//                   {locAreas.map((a) => <option key={a} value={a}>{a}</option>)}
+//                   <option value={LOC_OTHER}>Other (type location)</option>
+//                 </select>
+//                 {locIsOther && (
+//                   <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location" autoFocus={locOther && !form.location} />
+//                 )}
+//               </>
+//             ) : (
+//               <input value={form.location} onChange={(e) => set("location", e.target.value)}
+//                 placeholder={form.city ? `Location / area in ${form.city}` : "Select city first, or type location"} />
+//             )}
+//           </div>
+
+// ORIGINAL lines (before they were updated) - kept here word for word for reference:
+//   setLocOther(false); // ADDED
+
+// ORIGINAL: export default function ServiceCallModal({ call, onClose, onSaved }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function ServiceCallModal({ call, onClose, onSaved, onDelete }) {
   // ORIGINAL: const isNew = !call.id;
   // UPDATED: when the typed number already exists, the form switches to
   // editing THAT record (existing.id) - so saving updates it, no duplicate.
@@ -85,6 +154,7 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     location: call.location || "",
     // ADDED: city + experience (also populated by the Excel import)
     city: call.city || "",
+    state: call.state || "", // ADDED
     experience: call.experience || "",
     remarks: call.remarks || "",
   });
@@ -138,24 +208,25 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
   };
   const customNames = customCats.map((c) => c.name);
 
-  // ADDED: true while "Other (type city)" is chosen in the City dropdown
-  const [cityOther, setCityOther] = useState(false);
-  const cityIsOther = cityOther || (form.city && !cityMatch(form.city));
-  // ADDED: Location follows the City - a dropdown of that city's areas
-  // (Hyderabad, Secunderabad, Visakhapatnam, Vijayawada, Guntur, Tirupati, Warangal);
-  // other cities keep the normal text box. "Other" lets you type any location.
-  const locAreas = cityIsOther ? [] : areasFor(form.city);
-  const [locOther, setLocOther] = useState(false);
-  const locMatch = locAreas.find((a) => a.toLowerCase() === String(form.location || "").trim().toLowerCase()) || "";
-  const locIsOther = locOther || Boolean(form.location && !locMatch);
-  // when the City changes, a location from the old city's list is cleared
-  const onCityPicked = (city) => {
-    set("city", city);
-    setLocOther(false);
-    const newAreas = areasFor(city);
-    const cur = String(form.location || "").trim().toLowerCase();
-    if (cur && newAreas.length && !newAreas.some((a) => a.toLowerCase() === cur)) set("location", "");
-  };
+  // REPLACED by <StateCityLocation /> (kept for reference):
+//   // ADDED: true while "Other (type city)" is chosen in the City dropdown
+//   const [cityOther, setCityOther] = useState(false);
+//   const cityIsOther = cityOther || (form.city && !cityMatch(form.city));
+//   // ADDED: Location follows the City - a dropdown of that city's areas
+//   // (Hyderabad, Secunderabad, Visakhapatnam, Vijayawada, Guntur, Tirupati, Warangal);
+//   // other cities keep the normal text box. "Other" lets you type any location.
+//   const locAreas = cityIsOther ? [] : areasFor(form.city);
+//   const [locOther, setLocOther] = useState(false);
+//   const locMatch = locAreas.find((a) => a.toLowerCase() === String(form.location || "").trim().toLowerCase()) || "";
+//   const locIsOther = locOther || Boolean(form.location && !locMatch);
+//   // when the City changes, a location from the old city's list is cleared
+//   const onCityPicked = (city) => {
+//     set("city", city);
+//     setLocOther(false);
+//     const newAreas = areasFor(city);
+//     const cur = String(form.location || "").trim().toLowerCase();
+//     if (cur && newAreas.length && !newAreas.some((a) => a.toLowerCase() === cur)) set("location", "");
+//   };
 
   // ADDED: Interior Designer details (kept separate from the original form fields)
   const [designer, setDesigner] = useState(() => toDesigner(call));
@@ -217,8 +288,7 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
     setDesigner(toDesigner({}));
     setCvName("");
     setCvFile(null);
-    setCityOther(false);
-    setLocOther(false); // ADDED
+    // REPLACED (StateCityLocation keeps its own state): setCityOther(false); setLocOther(false);
     setError("");
   };
 
@@ -335,7 +405,10 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
               {SERVICE_CATEGORIES.filter((c) => !FORM_HIDDEN_CATEGORIES.includes(c) || form.category === c)
                 .map((c) => <option key={c} value={c}>{c}</option>)}
               {/* ADDED: categories added from the app */}
-              {customNames.map((c) => <option key={`c-${c}`} value={c}>{c}</option>)}
+              {/* ORIGINAL: {customNames.map((c) => <option key={`c-${c}`} value={c}>{c}</option>)} */}
+              {/* UPDATED: skip an added category that is now also in the built-in list (e.g. Architects) */}
+              {customNames.filter((c) => !SERVICE_CATEGORIES.some((s) => s.toLowerCase() === c.toLowerCase()))
+                .map((c) => <option key={`c-${c}`} value={c}>{c}</option>)}
               {/* ADDED: old record whose category is no longer in any list - keep it visible */}
               {form.category && !SERVICE_CATEGORIES.includes(form.category) && !customNames.includes(form.category) && (
                 <option value={form.category}>{form.category}</option>
@@ -365,64 +438,13 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
               </div>
             )}
           </div>
-          <div>
-            <label>City</label>
-            {/* ORIGINAL: <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
-                UPDATED: Hyderabad areas dropdown + "Other" to type any city */}
-            <select
-              value={cityIsOther ? CITY_OTHER : cityMatch(form.city)}
-              onChange={(e) => {
-                if (e.target.value === CITY_OTHER) { setCityOther(true); if (cityMatch(form.city)) set("city", ""); }
-                // ORIGINAL: else { setCityOther(false); set("city", e.target.value); }
-                else { setCityOther(false); onCityPicked(e.target.value); }
-              }}
-            >
-              {/* ORIGINAL: <option value="">Select city / area</option> */}
-              <option value="">Select city</option>
-              {/* ORIGINAL: {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)} */}
-              {/* UPDATED: grouped by state */}
-              <optgroup label="Telangana">
-                {TS_CITIES.map((c) => <option key={`ts-${c}`} value={c}>{c}</option>)}
-              </optgroup>
-              <optgroup label="Andhra Pradesh">
-                {AP_CITIES.map((c) => <option key={`ap-${c}`} value={c}>{c}</option>)}
-              </optgroup>
-              <option value={CITY_OTHER}>Other (type city)</option>
-            </select>
-            {cityIsOther && (
-              <input style={{ marginTop: 8 }} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Type city" autoFocus={cityOther && !form.city} />
-            )}
-          </div>
-          <div>
-            <label>Location</label>
-            {/* ORIGINAL: <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location / area" /> */}
-            {/* UPDATED: areas of the chosen city (when we have a list for it) */}
-            {locAreas.length > 0 ? (
-              <>
-                <select
-                  value={locIsOther ? LOC_OTHER : locMatch}
-                  onChange={(e) => {
-                    if (e.target.value === LOC_OTHER) { setLocOther(true); if (locMatch) set("location", ""); }
-                    else { setLocOther(false); set("location", e.target.value); }
-                  }}
-                >
-                  <option value="">Select location in {cityMatch(form.city)}</option>
-                  {locAreas.map((a) => <option key={a} value={a}>{a}</option>)}
-                  <option value={LOC_OTHER}>Other (type location)</option>
-                </select>
-                {locIsOther && (
-                  <input style={{ marginTop: 8 }} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Type location" autoFocus={locOther && !form.location} />
-                )}
-              </>
-            ) : (
-              <input value={form.location} onChange={(e) => set("location", e.target.value)}
-                placeholder={form.city ? `Location / area in ${form.city}` : "Select city first, or type location"} />
-            )}
-          </div>
+          {/* ADDED: State -> City -> Location (replaces the City and Location fields; same saved values) */}
+          <StateCityLocation values={form} onChange={set} />
+          {/* REMOVED from the form on request (saved values are kept; Interior Designers still have "Experience (years)"):
           <div>
             <label>Experience</label>
             <input value={form.experience} onChange={(e) => set("experience", e.target.value)} placeholder="e.g. 3 years" />
-          </div>
+          </div> */}
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Remarks</label>
             <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
@@ -518,6 +540,10 @@ export default function ServiceCallModal({ call, onClose, onSaved }) {
         )}
 
         <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the card */}
+          {onDelete && !isNew && (
+            <button type="button" className="btn danger form-del-btn" onClick={() => onDelete({ ...call, ...form, id: editId })}>🗑 Delete</button>
+          )}
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={saving}>
             {saving ? "Saving..." : isNew ? "Add service call" : "Save changes"}

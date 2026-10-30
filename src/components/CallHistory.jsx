@@ -14,6 +14,8 @@ const fmtDateTime = (d) => {
   return isNaN(dt) ? String(d) : dt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 };
 
+// ORIGINAL lines (before they were updated) - kept word for word for reference:
+//   <span>Date</span><span>By</span><span>Category</span><span>Remark</span>
 export default function CallHistory({ leadId, logs, isAdmin, onChanged }) {
   const [openFor, setOpenFor] = useState(null); // log id whose reply box is open
   const [text, setText] = useState("");
@@ -52,12 +54,13 @@ export default function CallHistory({ leadId, logs, isAdmin, onChanged }) {
   return (
     <div className="ch-list">
       <div className="ch-head" aria-hidden="true">
-        <span>Date</span><span>By</span><span>Category</span><span>Remark</span>
+        {/* ORIGINAL: <span>Date</span> */}<span>Call date</span><span>By</span><span>Category</span><span>Remark</span>
       </div>
       {logs.map((g) => (
         <div className="ch-item" key={g.id}>
           <div className="ch-row">
-            <span className="ch-date">{fmtDate(g.log_date)}</span>
+            {/* ORIGINAL: <span className="ch-date">{fmtDate(g.log_date)}</span> */}
+            <span className="ch-date">{fmtDate(g.call_date || g.log_date)}</span>
             <span className="ch-by">{g.user_name || "-"}</span>
             <span className="ch-cat">{g.category || "-"}</span>
             <span className="ch-remark">{g.remark || "-"}</span>

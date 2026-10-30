@@ -1,4 +1,6 @@
 // ORIGINAL: import React, { useCallback, useEffect, useState } from "react";
+// ADDED: project image on the cards
+import ProjectImage from "../components/ProjectImage.jsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 // ADDED: used by the project summary cards (click opens that project's leads)
 import { useNavigate } from "react-router-dom";
@@ -43,6 +45,9 @@ function WaCell({ value, card }) {
     </a>
   );
 }
+
+// ORIGINAL lines (before they were updated) - kept here word for word for reference:
+//   "No. of towers": Number(p.total_towers || 0), "No. of flats": Number(p.total_flats || 0), "Data in CRM (count)": Number(p.crm_data_count || 0),
 
 export default function ProjectDetails() {
   const user = getUser();
@@ -108,6 +113,7 @@ export default function ProjectDetails() {
       await api(`/projects/${p.id}`, { method: "DELETE" });
       flash("success", "Project deleted");
       load();
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       flash("error", e.message);
     }
@@ -293,6 +299,8 @@ export default function ProjectDetails() {
           {projects.length === 0 && <div className="card empty">No projects yet. Click "+ Add project" to create one.</div>}
           {projects.map((p) => (
             <div className="lead-card" key={`pc${p.id}`}>
+              {/* ADDED: Image of project (only when one is saved) */}
+              <ProjectImage project={p} className="proj-img proj-img-card" />
               <div className="lc-head">
                 <div>
                   <div className="lc-name">{p.project_name}</div>
@@ -333,9 +341,10 @@ export default function ProjectDetails() {
               )}
               <div className="lc-actions">
                 <button className="btn small secondary" onClick={() => setModalProject(p)}>Edit</button>
+                {/* REMOVED from the card on request - Delete is now inside the Edit form (admin only):
                 {isAdmin && (
                   <button className="btn small danger" onClick={() => remove(p)}>Delete</button>
-                )}
+                )} */}
               </div>
             </div>
           ))}
@@ -425,6 +434,8 @@ export default function ProjectDetails() {
         <ProjectModal
           project={modalProject}
           onClose={() => setModalProject(null)}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await remove(rec)) setModalProject(null); } : undefined}
           onSaved={() => {
             setModalProject(null);
             flash("success", modalProject.id ? "Project updated" : "Project added");

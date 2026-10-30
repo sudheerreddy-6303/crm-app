@@ -1,6 +1,12 @@
 // ORIGINAL: import React, { useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
+// ADDED: State -> City -> Location (Telangana / Andhra Pradesh) - same in every form
+import StateCityLocation from "./StateCityLocation.jsx";
+// ADDED: "Image of project"
+import ProjectImage from "./ProjectImage.jsx";
+import { uploadProjectImage, removeProjectImage, PROJECT_IMAGE_ACCEPT, PROJECT_IMAGE_MAX_MB } from "../utils/projectImage.js";
+import { showPopup } from "./Popup.jsx";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
 // ADDED: hide the number on the "already saved" card (xxxxxxx789)
@@ -17,7 +23,7 @@ export const PROJECT_STATUSES = ["Handovering for Interior", "Construction State
 // already saved on a project - its details are loaded into the form)
 const fromProject = (p) => ({
   project_name: p.project_name || "", owner_contact: p.owner_contact || "", secondary_number: p.secondary_number || "",
-  location: p.location || "", address: p.address || "", type: p.type || "", sales_executive: p.sales_executive || "",
+  location: p.location || "", state: p.state || "", city: p.city || "" /* ADDED */, address: p.address || "", type: p.type || "", sales_executive: p.sales_executive || "",
   sales_exec1_phone: p.sales_exec1_phone || "", sales_exec2_name: p.sales_exec2_name || "", sales_exec2_phone: p.sales_exec2_phone || "",
   phone1: p.phone1 || "", phone2: p.phone2 || "", status: p.status || "", data_in_crm: p.data_in_crm || "", marketing: p.marketing || "",
   rounds_called: p.rounds_called ?? 0, last_calling_date: p.last_calling_date ? String(p.last_calling_date).slice(0, 10) : "",
@@ -26,7 +32,21 @@ const fromProject = (p) => ({
 });
 const digitsOf = (v) => String(v || "").replace(/\D/g, "");
 
-export default function ProjectModal({ project, onClose, onSaved }) {
+// ORIGINAL (Project Location box) - replaced by <StateCityLocation /> (State -> City -> Location):
+//           {/* UPDATED: Location now uses the full row (Type moved up next to Project name)
+//               ORIGINAL: <div> ... Location ... </div> (half width) */}
+//           <div style={{ gridColumn: "1 / -1" }}>
+//             <label>Location</label>
+//             <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / locality" />
+//           </div>
+
+// ORIGINAL lines (before they were updated) - kept here word for word for reference:
+//   location: p.location || "", address: p.address || "", type: p.type || "", sales_executive: p.sales_executive || "",
+//   <input type="text" inputMode="numeric" value={form.crm_data_count} onChange={(e) => set("crm_data_count", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 350" />
+
+// ORIGINAL: export default function ProjectModal({ project, onClose, onSaved }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function ProjectModal({ project, onClose, onSaved, onDelete }) {
   // ORIGINAL: const isNew = !project.id;
   // UPDATED: when a typed number is already saved on a project, the form
   // switches to editing THAT project (existing.id) - saving updates it.
@@ -39,6 +59,9 @@ export default function ProjectModal({ project, onClose, onSaved }) {
     owner_contact: project.owner_contact || "",
     secondary_number: project.secondary_number || "",
     location: project.location || "",
+    // ADDED
+    state: project.state || "",
+    city: project.city || "",
     address: project.address || "",
     type: project.type || "",
     sales_executive: project.sales_executive || "",
@@ -65,6 +88,29 @@ export default function ProjectModal({ project, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // ADDED: "Image of project" - chosen file is uploaded right after the project is saved
+  const [imgFile, setImgFile] = useState(null);
+  const [imgPreview, setImgPreview] = useState("");
+  const [imgName, setImgName] = useState(project.image_name || "");
+  useEffect(() => { setImgName((existing && existing.image_name) || project.image_name || ""); }, [existing, project.image_name]);
+  useEffect(() => () => { if (imgPreview) URL.revokeObjectURL(imgPreview); }, [imgPreview]);
+  const pickImage = (file) => {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { showPopup("error", "Please choose a JPG, PNG or WEBP image.", "Wrong file type"); return; }
+    if (file.size > PROJECT_IMAGE_MAX_MB * 1024 * 1024) { showPopup("error", `The image is bigger than ${PROJECT_IMAGE_MAX_MB} MB. Please choose a smaller one.`, "Image too big"); return; }
+    setImgFile(file);
+    setImgPreview(URL.createObjectURL(file));
+  };
+  const clearPicked = () => { setImgFile(null); setImgPreview(""); };
+  const deleteImage = async () => {
+    if (!editId || !window.confirm("Remove the project image?")) return;
+    try {
+      await removeProjectImage(editId);
+      setImgName("");
+      showPopup("success", "Project image removed", "Removed");
+    } catch (e) { showPopup("error", e.message, "Could not remove"); }
+  };
 
   // ADDED: "How much data in CRM" fills in automatically = number of leads in
   // the CRM with this project name (same count as the Projects summary cards).
@@ -146,11 +192,20 @@ export default function ProjectModal({ project, onClose, onSaved }) {
     }
     setSaving(true);
     try {
+      // ADDED: remember the saved id, to upload the image after saving
+      let savedId = editId;
       if (isNew) {
-        await api("/projects", { method: "POST", body: JSON.stringify(form) });
+        // ORIGINAL: await api("/projects", { method: "POST", body: JSON.stringify(form) });
+        const d = await api("/projects", { method: "POST", body: JSON.stringify(form) });
+        savedId = d && d.id;
       } else {
         // ORIGINAL: await api(`/projects/${project.id}`, { method: "PUT", body: JSON.stringify(form) });
         await api(`/projects/${editId}`, { method: "PUT", body: JSON.stringify(form) });
+      }
+      // ADDED: upload the chosen image (the project is already saved)
+      if (imgFile && savedId) {
+        try { await uploadProjectImage(savedId, imgFile); }
+        catch (e) { showPopup("error", `The project was saved, but the image was not uploaded: ${e.message}`, "Image not uploaded"); }
       }
       onSaved();
     } catch (e) {
@@ -229,16 +284,30 @@ export default function ProjectModal({ project, onClose, onSaved }) {
             {/* ORIGINAL: <input value={form.secondary_number} ... /> */}
             <PhoneInput value={form.secondary_number} original={project.secondary_number} onChange={(e) => set("secondary_number", e.target.value)} placeholder="Secondary number" />
           </div>
-          {/* UPDATED: Location now uses the full row (Type moved up next to Project name)
-              ORIGINAL: <div> ... Location ... </div> (half width) */}
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label>Location</label>
-            <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Area / locality" />
-          </div>
+          {/* ADDED: State -> City -> Location (replaces the Location box; same saved Location value) */}
+          <StateCityLocation values={form} onChange={set} />
           {/* MOVED: "Type" is now next to the Project name (same dropdown, unchanged) */}
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Address</label>
             <textarea rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Full address" />
+          </div>
+          {/* ADDED: Image of project */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label>Image of project (JPG, PNG or WEBP - max {PROJECT_IMAGE_MAX_MB} MB)</label>
+            <div className="proj-img-field">
+              {imgPreview ? (
+                <img className="proj-img-thumb" src={imgPreview} alt="Selected project" />
+              ) : imgName && editId ? (
+                <ProjectImage project={{ id: editId, image_name: imgName, project_name: form.project_name }} className="proj-img-thumb" />
+              ) : (
+                <div className="proj-img-thumb proj-img-empty">No image</div>
+              )}
+              <div className="proj-img-actions">
+                <input type="file" accept={PROJECT_IMAGE_ACCEPT} onChange={(e) => { pickImage(e.target.files && e.target.files[0]); e.target.value = ""; }} />
+                {imgFile && <div className="sc-cv-note">📎 {imgFile.name} will be uploaded when you save{imgName ? " (replaces the current image)" : ""}. <button type="button" className="btn small secondary" onClick={clearPicked}>Cancel</button></div>}
+                {!imgFile && imgName && editId && <button type="button" className="btn small danger" onClick={deleteImage}>Remove image</button>}
+              </div>
+            </div>
           </div>
           <div>
             {/* ORIGINAL label: Sales executive name (same field, now "Sales executive 1 name") */}
@@ -336,6 +405,10 @@ export default function ProjectModal({ project, onClose, onSaved }) {
         </div>
 
         <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the card */}
+          {onDelete && !isNew && (
+            <button type="button" className="btn danger form-del-btn" onClick={() => onDelete({ ...project, ...form, id: editId })}>🗑 Delete</button>
+          )}
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={saving}>
             {saving ? "Saving..." : isNew ? "Add project" : "Save changes"}

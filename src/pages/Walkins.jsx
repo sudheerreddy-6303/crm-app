@@ -137,6 +137,7 @@ export default function Walkins() {
       await api(`/walkins/${w.id}`, { method: "DELETE" });
       flash("success", "Walk-in deleted");
       load();
+      return true; // ADDED: lets the form close after deleting
     } catch (e) {
       flash("error", e.message);
     }
@@ -152,6 +153,15 @@ export default function Walkins() {
       "Address": w.address || "", "Budget": w.budget || "", "Attended by": w.attended_by || "",
       "Remarks": w.remarks || "", "Converted to lead": w.converted_lead_id ? "Yes" : "No",
       "Added by": w.created_by_name || "", "Created": d10(w.created_at),
+      // ADDED: State + the lead-form fields of the walk-in
+      "State": w.state || "", "Project type": w.project_type || "", "Assigned telecaller": w.assigned_to_name || "",
+      "1st calling date": d10(w.first_calling_date), "2nd calling date": d10(w.second_calling_date), "3rd calling date": d10(w.third_calling_date),
+      "Call category": w.call_category || "", "Quote sent": w.quote_sent || "", "Order booked": w.order_booked || "",
+      "Revenue booked": w.revenue_booked !== null && w.revenue_booked !== undefined && w.revenue_booked !== "" ? Number(w.revenue_booked) : "",
+      "WhatsApp sent on": d10(w.whatsapp_sent_date), "WhatsApp category": w.whatsapp_category || "", "Next call date": d10(w.next_call_date),
+      "Priority": w.priority && w.priority !== "none" ? w.priority : "", "Source": w.source || "", "Calling remark": w.calling_remark || "",
+      "Call 1 remark": w.call_remark_1 || "", "Call 2 remark": w.call_remark_2 || "", "Call 3 remark": w.call_remark_3 || "",
+      "WhatsApp 1 sent date": d10(w.whatsapp_date_1), "WhatsApp 2 sent date": d10(w.whatsapp_date_2), "WhatsApp 3 sent date": d10(w.whatsapp_date_3),
     })) }], "Walk_ins");
   };
 
@@ -239,7 +249,8 @@ export default function Walkins() {
                 <button className="btn small secondary" title={w.converted_lead_id ? "Open the lead form" : "Convert to lead, then open the lead form"} onClick={() => followUp(w)}>Follow up</button>
                 {/* REMOVED from the cards on request (Edit is still in Table view):
                     <button className="btn small secondary" title="Edit walk-in details" onClick={() => setModalWalkin(w)}>Edit</button> */}
-                {isAdmin && <button className="btn small danger" onClick={() => remove(w)}>Delete</button>}
+                {/* REMOVED from the card on request - Delete is now inside "View" (admin only):
+                {isAdmin && <button className="btn small danger" onClick={() => remove(w)}>Delete</button>} */}
               </div>
             </div>
           ))}
@@ -358,7 +369,10 @@ export default function Walkins() {
       )}
 
       {/* ADDED: read-only walk-in details (admin) */}
-      {isAdmin && viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)} />}
+      {/* ORIGINAL: {isAdmin && viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)} />} */}
+      {/* UPDATED: + Delete inside "View" (admin only) */}
+      {isAdmin && viewWalkin && <WalkinViewModal walkin={viewWalkin} onClose={() => setViewWalkin(null)}
+        onDelete={async (rec) => { if (await remove(rec)) setViewWalkin(null); }} />}
 
       {/* ADDED: the lead form opened by "Follow up" (same as the lead cards) */}
       {followLead && (
@@ -375,6 +389,8 @@ export default function Walkins() {
         <WalkinModal
           walkin={modalWalkin}
           onClose={() => setModalWalkin(null)}
+          // ADDED: Delete inside the form (admin only)
+          onDelete={isAdmin ? async (rec) => { if (await remove(rec)) setModalWalkin(null); } : undefined}
           onSaved={() => {
             setModalWalkin(null);
             flash("success", modalWalkin.id ? "Walk-in updated" : "Walk-in added");

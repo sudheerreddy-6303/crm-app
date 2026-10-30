@@ -1,6 +1,9 @@
 // ORIGINAL: import React, { useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
-import { api } from "../api.js";
+// ORIGINAL: import { api } from "../api.js";
+import { api, getUser } from "../api.js";
+// ADDED: State -> City -> Location (Telangana / Andhra Pradesh) - same in every form
+import StateCityLocation from "./StateCityLocation.jsx";
 // ADDED: locked phone box for telecallers (xxxxxxx789), normal box for admin
 import PhoneInput from "./PhoneInput.jsx";
 // ADDED: hide the number on the "already saved" card (xxxxxxx789)
@@ -18,15 +21,228 @@ export const WALKIN_PURPOSES = [
 
 // ADDED: form values from a saved walk-in (used when a typed number is already
 // saved on a walk-in - its details are loaded into the form)
+// ADDED: the walk-in form has the same fields as the Add lead form
+// (same option lists as components/LeadModal.jsx)
+const WL_CATEGORIES = ["NOT INTERESTED", "FOLLOW UP", "INTERESTED", "NOT ANSWERED"];
+const WL_PROJECT_TYPES = ["2BHK", "3BHK", "4BHK", "Villa", "Commercial", "Others"];
+const d10w = (v) => (v ? String(v).slice(0, 10) : "");
+const leadFieldsFrom = (w) => ({
+  project_type: w.project_type || "",
+  assigned_to: w.assigned_to || "",
+  first_calling_date: d10w(w.first_calling_date),
+  second_calling_date: d10w(w.second_calling_date),
+  third_calling_date: d10w(w.third_calling_date),
+  call_category: w.call_category || "",
+  quote_sent: w.quote_sent || "",
+  order_booked: w.order_booked || "",
+  revenue_booked: w.revenue_booked === null || w.revenue_booked === undefined ? "" : String(Number(w.revenue_booked)),
+  whatsapp_sent_date: d10w(w.whatsapp_sent_date),
+  whatsapp_category: w.whatsapp_category || "",
+  next_call_date: d10w(w.next_call_date),
+  priority: w.priority || "none",
+  source: w.source || "",
+  calling_remark: w.calling_remark || "",
+  call_remark_1: w.call_remark_1 || "",
+  call_remark_2: w.call_remark_2 || "",
+  call_remark_3: w.call_remark_3 || "",
+  whatsapp_date_1: d10w(w.whatsapp_date_1),
+  whatsapp_date_2: d10w(w.whatsapp_date_2),
+  whatsapp_date_3: d10w(w.whatsapp_date_3),
+});
+
 const fromWalkin = (w) => ({
   name: w.name || "", phone: w.phone || "", alt_phone: w.alt_phone || "", project_name: w.project_name || "",
   visit_date: w.visit_date ? String(w.visit_date).slice(0, 10) : "", purpose: w.purpose || "",
-  location: w.location || "", site_location: w.site_location || "", city: w.city || "", address: w.address || "",
+  location: w.location || "", site_location: w.site_location || "", city: w.city || "", state: w.state || "" /* ADDED */, address: w.address || "",
   budget: w.budget || "", attended_by: w.attended_by || "", remarks: w.remarks || "",
+  ...leadFieldsFrom(w), // ADDED
 });
 const digitsOf = (v) => String(v || "").replace(/\D/g, "");
 
-export default function WalkinModal({ walkin, onClose, onSaved }) {
+// ORIGINAL (Walk-in Location + City boxes) - replaced by <StateCityLocation /> (State -> City -> Location):
+//           {/* ADDED: customer / site location */}
+//           <div>
+//             <label>Location</label>
+//             <input value={form.site_location} onChange={(e) => set("site_location", e.target.value)} placeholder="Area / locality" />
+//           </div>
+//           {/* ADDED: city */}
+//           <div>
+//             <label>City</label>
+//             <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+//           </div>
+
+// ORIGINAL lines (before they were updated) - kept here word for word for reference:
+//   location: w.location || "", site_location: w.site_location || "", city: w.city || "", address: w.address || "",
+
+// ORIGINAL form layout (walk-in fields + "Lead details" section) - replaced so the walk-in form has
+// exactly the same fields as the Add lead form. Kept word for word for reference.
+// Removed from the form: Alternate mobile, Visit date, Purpose, Experience centre, Address, Budget,
+// Attended by, Remarks (saved values stay in the database and are kept when a walk-in is edited).
+//         <div className="form-grid">
+//           <div>
+//             <label>Name</label>
+//             <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Customer name" />
+//           </div>
+//           <div>
+//             <label>Phone number</label>
+//             {/* ORIGINAL: <input value={form.phone} ... placeholder="Phone number" /> */}
+//             <PhoneInput value={form.phone} original={walkin.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
+//           </div>
+//           {/* ADDED: alternate mobile number */}
+//           <div>
+//             <label>Alternate mobile number</label>
+//             {/* ORIGINAL: <input value={form.alt_phone} ... placeholder="Alternate mobile number" /> */}
+//             <PhoneInput value={form.alt_phone} original={walkin.alt_phone} onChange={(e) => set("alt_phone", e.target.value)} placeholder="Alternate mobile number" />
+//           </div>
+//           {/* ADDED: project name / villa name */}
+//           <div>
+//             <label>Project name / villa name</label>
+//             <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} placeholder="e.g. Aparna Xenon / villa no." />
+//           </div>
+//           <div>
+//             <label>Visit date</label>
+//             <input type="date" value={form.visit_date} onChange={(e) => set("visit_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>Purpose</label>
+//             <select value={form.purpose} onChange={(e) => set("purpose", e.target.value)}>
+//               <option value="">Select purpose</option>
+//               {WALKIN_PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
+//             </select>
+//           </div>
+//           <div>
+//             {/* UPDATED label: was "Experience centre / location" - now just the
+//                 centre, since Location/City/Address below cover the customer's place */}
+//             <label>Experience centre</label>
+//             <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Which centre" />
+//           </div>
+//           {/* ADDED: State -> City -> Location of the customer (replaces the Location and City boxes; same saved values) */}
+//           <StateCityLocation values={form} onChange={set} keys={{ location: "site_location" }} />
+//           {/* ADDED: address (full width) */}
+//           <div style={{ gridColumn: "1 / -1" }}>
+//             <label>Address</label>
+//             <textarea rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Full address" />
+//           </div>
+//           <div>
+//             <label>Budget</label>
+//             <input value={form.budget} onChange={(e) => set("budget", e.target.value)} placeholder="e.g. 5-8 lakhs" />
+//           </div>
+//           <div>
+//             <label>Attended by</label>
+//             <input value={form.attended_by} onChange={(e) => set("attended_by", e.target.value)} placeholder="Designer / sales person" />
+//           </div>
+//           <div style={{ gridColumn: "1 / -1" }}>
+//             <label>Remarks</label>
+//             <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
+//           </div>
+//         </div>
+//
+//         {/* ADDED: the same fields as the Add lead form (saved with the walk-in and
+//             copied into the lead when the walk-in is converted) */}
+//         <div className="wl-lead-title">📋 Lead details</div>
+//         <div className="form-grid">
+//           <div>
+//             <label>Project type</label>
+//             <select value={form.project_type} onChange={(e) => set("project_type", e.target.value)}>
+//               <option value="">—</option>
+//               {WL_PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+//             </select>
+//           </div>
+//           {isAdmin && (
+//             <div>
+//               <label>Assigned telecaller</label>
+//               <select value={form.assigned_to || ""} onChange={(e) => set("assigned_to", e.target.value)}>
+//                 <option value="">Unassigned</option>
+//                 {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+//               </select>
+//             </div>
+//           )}
+//           <div>
+//             <label>1st calling date</label>
+//             <input type="date" value={form.first_calling_date} onChange={(e) => set("first_calling_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>2nd calling date</label>
+//             <input type="date" value={form.second_calling_date} onChange={(e) => set("second_calling_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>3rd calling date</label>
+//             <input type="date" value={form.third_calling_date} onChange={(e) => set("third_calling_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>Call category</label>
+//             <select value={form.call_category} onChange={(e) => set("call_category", e.target.value)}>
+//               <option value="">—</option>
+//               {WL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+//             </select>
+//           </div>
+//           <div>
+//             <label>Quote sent</label>
+//             <select value={form.quote_sent} onChange={(e) => set("quote_sent", e.target.value)}>
+//               <option value="">—</option><option>Yes</option><option>No</option>
+//             </select>
+//           </div>
+//           <div>
+//             <label>Order booked</label>
+//             <select value={form.order_booked} onChange={(e) => set("order_booked", e.target.value)}>
+//               <option value="">—</option><option>Yes</option><option>No</option>
+//             </select>
+//           </div>
+//           <div>
+//             <label>Revenue booked (₹)</label>
+//             <input type="text" inputMode="decimal" autoComplete="off" value={form.revenue_booked}
+//                    onChange={(e) => set("revenue_booked", e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))}
+//                    placeholder="e.g. 250000" />
+//           </div>
+//           <div>
+//             <label>WhatsApp message sent on</label>
+//             <input type="date" value={form.whatsapp_sent_date} onChange={(e) => set("whatsapp_sent_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>WhatsApp category</label>
+//             <input value={form.whatsapp_category} onChange={(e) => set("whatsapp_category", e.target.value)} placeholder="e.g. DECOR" />
+//           </div>
+//           <div>
+//             <label>Next call date</label>
+//             <input type="date" value={form.next_call_date} onChange={(e) => set("next_call_date", e.target.value)} />
+//           </div>
+//           <div>
+//             <label>Priority</label>
+//             <select className={`prio-select ${form.priority || "none"}`} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+//               <option value="none">None</option>
+//               <option value="hot">🔥 Hot</option>
+//               <option value="warm">☀️ Warm</option>
+//               <option value="cold">❄️ Cold</option>
+//               <option value="dead">⚫ Dead</option>
+//             </select>
+//           </div>
+//           {isAdmin && (
+//             <div>
+//               <label>Source</label>
+//               <input value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="e.g. JustDial, Website" />
+//             </div>
+//           )}
+//           <div style={{ gridColumn: "1 / -1" }}>
+//             <label>Calling remark</label>
+//             <textarea rows={2} value={form.calling_remark} onChange={(e) => set("calling_remark", e.target.value)} placeholder="e.g. she wants designs (guntur 4bhk) (sent)" />
+//           </div>
+//           {[1, 2, 3].map((n) => (
+//             <div key={`cr${n}`}>
+//               <label>Call {n} remark</label>
+//               <input value={form[`call_remark_${n}`]} onChange={(e) => set(`call_remark_${n}`, e.target.value)} placeholder={`Remark for call ${n}`} />
+//             </div>
+//           ))}
+//           {[1, 2, 3].map((n) => (
+//             <div key={`wa${n}`}>
+//               <label>WhatsApp {n} sent date</label>
+//               <input type="date" value={form[`whatsapp_date_${n}`]} onChange={(e) => set(`whatsapp_date_${n}`, e.target.value)} />
+//             </div>
+//           ))}
+//         </div>
+
+// ORIGINAL: export default function WalkinModal({ walkin, onClose, onSaved }) {
+// ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
+export default function WalkinModal({ walkin, onClose, onSaved, onDelete }) {
   // ORIGINAL: const isNew = !walkin.id;
   // UPDATED: when a typed number is already saved on a walk-in, the form
   // switches to editing THAT walk-in (existing.id) - saving updates it.
@@ -45,11 +261,20 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
     location: walkin.location || "",
     site_location: walkin.site_location || "",
     city: walkin.city || "",
+    state: walkin.state || "", // ADDED
     address: walkin.address || "",
     budget: walkin.budget || "",
     attended_by: walkin.attended_by || "",
     remarks: walkin.remarks || "",
+    ...leadFieldsFrom(walkin), // ADDED: same fields as the Add lead form
   });
+  // ADDED: admin picks the telecaller (same as the lead form)
+  const isAdmin = getUser()?.role === "admin";
+  const [telecallers, setTelecallers] = useState([]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    api("/users").then((rows) => setTelecallers((rows || []).filter((u) => u.role === "telecaller"))).catch(() => {});
+  }, [isAdmin]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -112,7 +337,11 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
     setSaving(true);
     try {
       if (isNew) {
-        await api("/walkins", { method: "POST", body: JSON.stringify(form) });
+        // ORIGINAL: await api("/walkins", { method: "POST", body: JSON.stringify(form) });
+        // UPDATED: Visit date is not in the form any more - a new walk-in gets today's date
+        const t = new Date();
+        const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+        await api("/walkins", { method: "POST", body: JSON.stringify({ ...form, visit_date: form.visit_date || today }) });
       } else {
         // ORIGINAL: await api(`/walkins/${walkin.id}`, { method: "PUT", body: JSON.stringify(form) });
         await api(`/walkins/${editId}`, { method: "PUT", body: JSON.stringify(form) });
@@ -170,74 +399,126 @@ export default function WalkinModal({ walkin, onClose, onSaved }) {
         {lookupWarn && !existing && <div className="sc-checking" style={{ color: "var(--red-ink)" }}>⚠ {lookupWarn}</div>}
         {error && <div className="error-msg">{error}</div>}
 
+        {/* UPDATED: the walk-in form now has exactly the same fields as the Add lead form,
+            in the same order (old layout kept as a comment above the component) */}
         <div className="form-grid">
           <div>
             <label>Name</label>
             <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Customer name" />
           </div>
           <div>
-            <label>Phone number</label>
-            {/* ORIGINAL: <input value={form.phone} ... placeholder="Phone number" /> */}
-            <PhoneInput value={form.phone} original={walkin.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
-          </div>
-          {/* ADDED: alternate mobile number */}
-          <div>
-            <label>Alternate mobile number</label>
-            {/* ORIGINAL: <input value={form.alt_phone} ... placeholder="Alternate mobile number" /> */}
-            <PhoneInput value={form.alt_phone} original={walkin.alt_phone} onChange={(e) => set("alt_phone", e.target.value)} placeholder="Alternate mobile number" />
-          </div>
-          {/* ADDED: project name / villa name */}
-          <div>
-            <label>Project name / villa name</label>
-            <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} placeholder="e.g. Aparna Xenon / villa no." />
+            <label>Project name</label>
+            <input value={form.project_name} onChange={(e) => set("project_name", e.target.value)} placeholder="Project name" />
           </div>
           <div>
-            <label>Visit date</label>
-            <input type="date" value={form.visit_date} onChange={(e) => set("visit_date", e.target.value)} />
-          </div>
-          <div>
-            <label>Purpose</label>
-            <select value={form.purpose} onChange={(e) => set("purpose", e.target.value)}>
-              <option value="">Select purpose</option>
-              {WALKIN_PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
+            <label>Project type</label>
+            <select value={form.project_type} onChange={(e) => set("project_type", e.target.value)}>
+              <option value="">—</option>
+              {WL_PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
-            {/* UPDATED label: was "Experience centre / location" - now just the
-                centre, since Location/City/Address below cover the customer's place */}
-            <label>Experience centre</label>
-            <input value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Which centre" />
+            <label>Primary phone</label>
+            <PhoneInput value={form.phone} original={walkin.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number" />
           </div>
-          {/* ADDED: customer / site location */}
+          {isAdmin && (
+            <div>
+              <label>Assigned telecaller</label>
+              <select value={form.assigned_to || ""} onChange={(e) => set("assigned_to", e.target.value)}>
+                <option value="">Unassigned</option>
+                {telecallers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+          <StateCityLocation values={form} onChange={set} keys={{ location: "site_location" }} />
           <div>
-            <label>Location</label>
-            <input value={form.site_location} onChange={(e) => set("site_location", e.target.value)} placeholder="Area / locality" />
+            <label>1st calling date</label>
+            <input type="date" value={form.first_calling_date} onChange={(e) => set("first_calling_date", e.target.value)} />
           </div>
-          {/* ADDED: city */}
           <div>
-            <label>City</label>
-            <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+            <label>2nd calling date</label>
+            <input type="date" value={form.second_calling_date} onChange={(e) => set("second_calling_date", e.target.value)} />
           </div>
-          {/* ADDED: address (full width) */}
+          <div>
+            <label>3rd calling date</label>
+            <input type="date" value={form.third_calling_date} onChange={(e) => set("third_calling_date", e.target.value)} />
+          </div>
+          <div>
+            <label>Call category</label>
+            <select value={form.call_category} onChange={(e) => set("call_category", e.target.value)}>
+              <option value="">—</option>
+              {WL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Quote sent</label>
+            <select value={form.quote_sent} onChange={(e) => set("quote_sent", e.target.value)}>
+              <option value="">—</option><option>Yes</option><option>No</option>
+            </select>
+          </div>
+          <div>
+            <label>Order booked</label>
+            <select value={form.order_booked} onChange={(e) => set("order_booked", e.target.value)}>
+              <option value="">—</option><option>Yes</option><option>No</option>
+            </select>
+          </div>
+          <div>
+            <label>Revenue booked (₹)</label>
+            <input type="text" inputMode="decimal" autoComplete="off" value={form.revenue_booked}
+                   onChange={(e) => set("revenue_booked", e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))}
+                   placeholder="e.g. 250000" />
+          </div>
+          <div>
+            <label>WhatsApp message sent on</label>
+            <input type="date" value={form.whatsapp_sent_date} onChange={(e) => set("whatsapp_sent_date", e.target.value)} />
+          </div>
+          <div>
+            <label>WhatsApp category</label>
+            <input value={form.whatsapp_category} onChange={(e) => set("whatsapp_category", e.target.value)} placeholder="e.g. DECOR" />
+          </div>
+          <div>
+            <label>Next call date</label>
+            <input type="date" value={form.next_call_date} onChange={(e) => set("next_call_date", e.target.value)} />
+          </div>
+          <div>
+            <label>Priority</label>
+            <select className={`prio-select ${form.priority || "none"}`} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+              <option value="none">None</option>
+              <option value="hot">🔥 Hot</option>
+              <option value="warm">☀️ Warm</option>
+              <option value="cold">❄️ Cold</option>
+              <option value="dead">⚫ Dead</option>
+            </select>
+          </div>
+          {isAdmin && (
+            <div>
+              <label>Source</label>
+              <input value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="e.g. JustDial, Website" />
+            </div>
+          )}
           <div style={{ gridColumn: "1 / -1" }}>
-            <label>Address</label>
-            <textarea rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Full address" />
+            <label>Calling remark</label>
+            <textarea rows={2} value={form.calling_remark} onChange={(e) => set("calling_remark", e.target.value)} placeholder="e.g. she wants designs (guntur 4bhk) (sent)" />
           </div>
-          <div>
-            <label>Budget</label>
-            <input value={form.budget} onChange={(e) => set("budget", e.target.value)} placeholder="e.g. 5-8 lakhs" />
-          </div>
-          <div>
-            <label>Attended by</label>
-            <input value={form.attended_by} onChange={(e) => set("attended_by", e.target.value)} placeholder="Designer / sales person" />
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label>Remarks</label>
-            <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
-          </div>
+          {[1, 2, 3].map((n) => (
+            <div key={`cr${n}`}>
+              <label>Call {n} remark</label>
+              <input value={form[`call_remark_${n}`]} onChange={(e) => set(`call_remark_${n}`, e.target.value)} placeholder={`Remark for call ${n}`} />
+            </div>
+          ))}
+          {[1, 2, 3].map((n) => (
+            <div key={`wa${n}`}>
+              <label>WhatsApp {n} sent date</label>
+              <input type="date" value={form[`whatsapp_date_${n}`]} onChange={(e) => set(`whatsapp_date_${n}`, e.target.value)} />
+            </div>
+          ))}
         </div>
 
         <div className="actions">
+          {/* ADDED: Delete (admin only) - moved here from the card */}
+          {onDelete && !isNew && (
+            <button type="button" className="btn danger form-del-btn" onClick={() => onDelete({ ...walkin, ...form, id: editId })}>🗑 Delete</button>
+          )}
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={saving}>
             {saving ? "Saving..." : isNew ? "Add walk-in" : "Save changes"}

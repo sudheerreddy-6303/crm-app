@@ -67,3 +67,13 @@ export const areasFor = (city) => {
   const c = matchCity(city);
   return (c && CITY_AREAS[c]) || [];
 };
+
+// ADDED: states for the State dropdown (State -> City -> Location in every form)
+export const STATES = ["Telangana", "Andhra Pradesh"];
+export const citiesOf = (state) => (state === "Telangana" ? TS_CITIES : state === "Andhra Pradesh" ? AP_CITIES : []);
+// state of a city in our lists ("" when not found) - used for old records saved without a state
+export const stateOfCity = (city) => {
+  const c = matchCity(city);
+  if (!c) return "";
+  return TS_CITIES.includes(c) ? "Telangana" : "Andhra Pradesh";
+};
