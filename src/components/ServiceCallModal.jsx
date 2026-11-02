@@ -32,6 +32,8 @@ const d10 = (v) => (v ? String(v).slice(0, 10) : "");
 // const CITY_OTHER = "__other__";
 // // match ignoring capitals / spaces, so a saved "hyderabad" selects "Hyderabad"
 // const cityMatch = (v) => CITY_OPTIONS.find((c) => c.toLowerCase() === String(v || "").trim().toLowerCase()) || "";
+// ADDED: Interior Designer "Status" options (same list in backend/routes/serviceCalls.js)
+export const DESIGNER_STATUSES = ["Interested", "Not interested", "Offered job", "Currently working"];
 const toDesigner = (c) => ({
   exp_range: c.exp_range || "",
   // ORIGINAL: interview_attended: c.interview_attended || "",
@@ -41,6 +43,10 @@ const toDesigner = (c) => ({
   company_name: c.company_name || "",
   designation: c.designation || "",
   salary: c.salary || "",
+  // ADDED: interested to attend interview, selected for job, status
+  interview_interested: c.interview_interested || "",
+  selected_for_job: c.selected_for_job || "",
+  designer_status: c.designer_status || "",
   followup1_date: d10(c.followup1_date), followup1_remark: c.followup1_remark || "",
   followup2_date: d10(c.followup2_date), followup2_remark: c.followup2_remark || "",
   followup3_date: d10(c.followup3_date), followup3_remark: c.followup3_remark || "",
@@ -137,6 +143,10 @@ const toForm = (c, phone) => ({
 
 // ORIGINAL lines (before they were updated) - kept here word for word for reference:
 //   setLocOther(false); // ADDED
+
+// ORIGINAL lines (before they were updated) - kept word for word for reference:
+//   <div className="lc-remarks"><div><span>Remarks:</span> {existing.remarks}</div></div>
+//   <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
 
 // ORIGINAL: export default function ServiceCallModal({ call, onClose, onSaved }) {
 // ADDED: Delete inside the form (admin only) - the page passes onDelete; it asks to confirm
@@ -377,7 +387,7 @@ export default function ServiceCallModal({ call, onClose, onSaved, onDelete }) {
               <span>Added on</span><b>{existing.created_at ? String(existing.created_at).slice(0, 10) : "-"}</b>
             </div>
             {existing.remarks && (
-              <div className="lc-remarks"><div><span>Remarks:</span> {existing.remarks}</div></div>
+              <div className="lc-remarks"><div><span>Admin remarks:</span> {existing.remarks}</div></div>
             )}
           </div>
         )}
@@ -446,8 +456,9 @@ export default function ServiceCallModal({ call, onClose, onSaved, onDelete }) {
             <input value={form.experience} onChange={(e) => set("experience", e.target.value)} placeholder="e.g. 3 years" />
           </div> */}
           <div style={{ gridColumn: "1 / -1" }}>
-            <label>Remarks</label>
-            <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Remarks..." />
+            {/* ORIGINAL: <label>Remarks</label> ... placeholder="Remarks..." - RENAMED to "Admin remarks" (same saved field) */}
+            <label>Admin remarks</label>
+            <textarea rows={3} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Admin remarks..." />
           </div>
         </div>
 
@@ -501,6 +512,31 @@ export default function ServiceCallModal({ call, onClose, onSaved, onDelete }) {
                 )}
                 <input type="file" accept={CV_ACCEPT} onChange={(e) => pickCv(e.target.files && e.target.files[0])} />
                 {cvFile && <div className="sc-cv-note">📎 {cvFile.name} will be uploaded when you save{cvName ? " (replaces the current CV)" : ""}.</div>}
+              </div>
+              {/* ADDED: above the follow-ups - interested to attend interview, selected for job, status */}
+              <div>
+                <label>Interested to attend interview?</label>
+                <select value={designer.interview_interested} onChange={(e) => setD("interview_interested", e.target.value)}>
+                  <option value="">—</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              <div>
+                <label>Selected for job?</label>
+                <select value={designer.selected_for_job} onChange={(e) => setD("selected_for_job", e.target.value)}>
+                  <option value="">—</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              {/* full row, so the follow-up date / remark pairs below stay side by side */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label>Status</label>
+                <select value={designer.designer_status} onChange={(e) => setD("designer_status", e.target.value)}>
+                  <option value="">Select status</option>
+                  {DESIGNER_STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
               </div>
               {[1, 2, 3].map((n) => (
                 <React.Fragment key={n}>

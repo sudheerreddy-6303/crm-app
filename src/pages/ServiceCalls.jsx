@@ -10,7 +10,8 @@ import { phoneText, cardPhone } from "../utils/maskPhone.js";
 import ExportButton from "../components/ExportButton.jsx";
 import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
 // UPDATED: + DESIGNER_CATEGORY (Interior Designer extra details)
-import ServiceCallModal, { SERVICE_CATEGORIES, DESIGNER_CATEGORY } from "../components/ServiceCallModal.jsx";
+// ORIGINAL: import ServiceCallModal, { SERVICE_CATEGORIES, DESIGNER_CATEGORY } from "../components/ServiceCallModal.jsx";
+import ServiceCallModal, { SERVICE_CATEGORIES, DESIGNER_CATEGORY, DESIGNER_STATUSES } from "../components/ServiceCallModal.jsx";
 // ADDED: "Assign to" pop-up (admin only)
 import ServiceCallAssignModal from "../components/ServiceCallAssignModal.jsx";
 // ADDED: open the uploaded CV + pop-up on error
@@ -70,6 +71,10 @@ function pageList(current, totalPages) {
   return out;
 }
 
+// ORIGINAL lines (before they were updated) - kept word for word for reference:
+//   "Remarks": c.remarks || "", "Added by": c.created_by_name || "", "Date": d10(c.created_at),
+//   <div className="lc-remarks"><div><span>Remarks:</span> {c.remarks}</div></div>
+
 export default function ServiceCalls() {
   const user = getUser();
   const isAdmin = user?.role === "admin";
@@ -80,7 +85,10 @@ export default function ServiceCalls() {
   // UPDATED: + location and experience filters
   // ORIGINAL: const [filters, setFilters] = useState({ search: "", category: "", location: "", experience: "" });
   // UPDATED: + assigned ("" all, "none" not assigned, "me" mine, or telecaller id)
-  const [filters, setFilters] = useState({ search: "", category: "", location: "", experience: "", assigned: "" });
+  // ORIGINAL: const [filters, setFilters] = useState({ search: "", category: "", location: "", experience: "", assigned: "" });
+  // UPDATED: + interview_interested, selected_for_job, designer_status (Interior Designer filters)
+  const [filters, setFilters] = useState({ search: "", category: "", location: "", experience: "", assigned: "",
+    interview_interested: "", selected_for_job: "", designer_status: "" });
   // ADDED: Assign pop-up (admin) + telecaller list for the "Assigned to" filter
   const [assignCall, setAssignCall] = useState(null);
   const [tcList, setTcList] = useState([]);
@@ -145,6 +153,10 @@ export default function ServiceCalls() {
     if (filters.location) q.set("location", filters.location);
     if (filters.experience) q.set("experience", filters.experience);
     if (filters.assigned) q.set("assigned", filters.assigned); // ADDED
+    // ADDED: Interior Designer filters
+    if (filters.interview_interested) q.set("interview_interested", filters.interview_interested);
+    if (filters.selected_for_job) q.set("selected_for_job", filters.selected_for_job);
+    if (filters.designer_status) q.set("designer_status", filters.designer_status);
     api(`/service-calls?${q}`)
       // ORIGINAL: .then((d) => { setCalls(d.serviceCalls); setTotal(d.total); })
       .then((d) => { if (seq !== loadSeq.current) return; setCalls(d.serviceCalls); setTotal(d.total); })
@@ -191,16 +203,19 @@ export default function ServiceCalls() {
   // plus a second sheet with the per-category counts
   const exportAll = async () => {
     // ORIGINAL (full line): const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience }, "serviceCalls");
-    const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience, assigned: filters.assigned }, "serviceCalls");
+    const rows = await fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience, assigned: filters.assigned, interview_interested: filters.interview_interested, selected_for_job: filters.selected_for_job, designer_status: filters.designer_status }, "serviceCalls");
     return downloadExcel([
       { name: "Service calls", rows: rows.map((c) => ({
         "Name": c.name || "", "Phone number": c.phone || "", "Category": c.category || "",
         "City": c.city || "", "Location": c.location || "", "Experience": c.experience || "",
-        "Remarks": c.remarks || "", "Added by": c.created_by_name || "", "Date": d10(c.created_at),
+        // ORIGINAL column name: "Remarks" - RENAMED to "Admin remarks"
+        "Admin remarks": c.remarks || "", "Added by": c.created_by_name || "", "Date": d10(c.created_at),
         // ADDED: assigned telecaller
         "Assigned to": c.assigned_to_name || "", "Assigned on": c.assigned_on || "",
         // ADDED: Interior Designer details
         "Experience (years)": c.exp_range || "", "Attended interview": c.interview_attended || "",
+        // ADDED
+        "Interested to attend interview": c.interview_interested || "", "Selected for job": c.selected_for_job || "", "Designer status": c.designer_status || "",
         "Currently working location": c.current_location || "", "Company": c.company_name || "",
         "Designation": c.designation || "", "Salary": c.salary || "", "CV": c.cv_name ? "Yes" : "",
         "Follow-up 1 date": d10(c.followup1_date), "Follow-up 1 remark": c.followup1_remark || "",
@@ -242,7 +257,7 @@ export default function ServiceCalls() {
           {isAdmin && <ExportButton onExport={exportAll} />}
           {/* ADDED: copy phone numbers (admin only) */}
           {/* ORIGINAL (full line): <CopyNumbersButton fields={["phone"]} getRows={() => fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience }, "serviceCalls")} /> */}
-          <CopyNumbersButton fields={["phone"]} getRows={() => fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience, assigned: filters.assigned }, "serviceCalls")} />
+          <CopyNumbersButton fields={["phone"]} getRows={() => fetchAllPages("/service-calls", { search: filters.search, category: filters.category, location: filters.location, experience: filters.experience, assigned: filters.assigned, interview_interested: filters.interview_interested, selected_for_job: filters.selected_for_job, designer_status: filters.designer_status }, "serviceCalls")} />
           {isAdmin && (
             <button className="btn secondary" onClick={() => setShowImport(true)}>⬆️ Import Excel</button>
           )}
@@ -319,8 +334,24 @@ export default function ServiceCalls() {
         </select>
         {/* ORIGINAL: {(filters.location || filters.experience) && ( ... setFilters({ ...filters, location: "", experience: "" }) */}
           {/* ORIGINAL (full line): <button className="btn small secondary" onClick={() => { setPage(1); setFilters({ ...filters, location: "", experience: "" }); }}>✕ Clear</button> */}
-        {(filters.location || filters.experience || filters.assigned) && (
-          <button className="btn small secondary" onClick={() => { setPage(1); setFilters({ ...filters, location: "", experience: "", assigned: "" }); }}>✕ Clear</button>
+        {/* ADDED: Interior Designer filters */}
+        <select value={filters.interview_interested} onChange={(e) => { setPage(1); setFilters({ ...filters, interview_interested: e.target.value }); }} aria-label="Filter by interested to attend interview">
+          <option value="">Interested to attend interview?</option>
+          <option value="Yes">Interested in interview: Yes</option>
+          <option value="No">Interested in interview: No</option>
+        </select>
+        <select value={filters.designer_status} onChange={(e) => { setPage(1); setFilters({ ...filters, designer_status: e.target.value }); }} aria-label="Filter by status">
+          <option value="">Status</option>
+          {DESIGNER_STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+        <select value={filters.selected_for_job} onChange={(e) => { setPage(1); setFilters({ ...filters, selected_for_job: e.target.value }); }} aria-label="Filter by selected for job">
+          <option value="">Selected for job?</option>
+          <option value="Yes">Selected for job: Yes</option>
+          <option value="No">Selected for job: No</option>
+        </select>
+        {/* PREVIOUS: {(filters.location || filters.experience || filters.assigned) && ( ... setFilters({ ...filters, location: "", experience: "", assigned: "" }) */}
+        {(filters.location || filters.experience || filters.assigned || filters.interview_interested || filters.selected_for_job || filters.designer_status) && (
+          <button className="btn small secondary" onClick={() => { setPage(1); setFilters({ ...filters, location: "", experience: "", assigned: "", interview_interested: "", selected_for_job: "", designer_status: "" }); }}>✕ Clear</button>
         )}
         {/* ADDED: Cards / Table switch (same as the other pages) */}
         <div className="view-toggle" role="group" aria-label="View">
@@ -368,6 +399,10 @@ export default function ServiceCalls() {
                 {c.category === DESIGNER_CATEGORY && (<>
                   <span>Experience (years)</span><b>{c.exp_range ? `${c.exp_range} years` : "-"}</b>
                   <span>Attended interview</span><b>{c.interview_attended || "-"}</b>
+                  {/* ADDED */}
+                  <span>Interested to attend interview</span><b>{c.interview_interested || "-"}</b>
+                  <span>Selected for job</span><b>{c.selected_for_job || "-"}</b>
+                  <span>Status</span><b>{c.designer_status || "-"}</b>
                   <span>Working location</span><b>{c.current_location || "-"}</b>
                   <span>Company</span><b>{c.company_name || "-"}</b>
                   <span>Designation</span><b>{c.designation || "-"}</b>
@@ -382,7 +417,7 @@ export default function ServiceCalls() {
                 <span>Assigned to</span><b className={c.assigned_to_name ? "sc-assigned" : ""}>{c.assigned_to_name || "Not assigned"}</b>
               </div>
               {c.remarks && (
-                <div className="lc-remarks"><div><span>Remarks:</span> {c.remarks}</div></div>
+                <div className="lc-remarks"><div><span>Admin remarks:</span> {c.remarks}</div></div>
               )}
               {/* ADDED: Interior Designer follow-ups (only the ones filled in) */}
               {/* ORIGINAL: {c.category === DESIGNER_CATEGORY && [1, 2, 3].some(...) && (
@@ -429,7 +464,8 @@ export default function ServiceCalls() {
                 <th>City</th>
                 <th>Location</th>
                 <th>Experience</th>
-                <th>Remarks</th>
+                {/* ORIGINAL: <th>Remarks</th> */}
+                <th>Admin remarks</th>
                 <th>Added by</th>
                 <th>Date</th>
                 {/* ADDED */}
