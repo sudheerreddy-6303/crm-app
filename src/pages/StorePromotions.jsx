@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, getUser } from "../api.js";
 import { phoneText } from "../utils/maskPhone.js";
 import { showPopup } from "../components/Popup.jsx";
-import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+// PREVIOUS: import CopyNumbersButton from "../components/CopyNumbersButton.jsx";
+// ADDED: copyToClipboard for the Store Promotions own "Copy numbers" button
+import { copyToClipboard } from "../components/CopyNumbersButton.jsx";
 import ExportButton from "../components/ExportButton.jsx";
 import { fetchAllPages, downloadExcel } from "../utils/exportExcel.js";
 
@@ -52,6 +54,49 @@ const PER_PAGE = 50;
 //     </div>
 //   );
 // }
+
+// ADDED: Store Promotions "Copy numbers" button - shown to EVERYONE
+// (admin + telecallers). It does not depend on CopyNumbersButton's admin check,
+// so telecallers always see it on this page. Loads the full list 1000 at a
+// time (fast even for thousands of numbers) and copies the full 10-digit
+// numbers, one per line, no duplicates. Copies only the searched numbers when
+// something is typed in "Search number...".
+function StoreCopyButton({ store, name, search }) {
+  const [copying, setCopying] = useState(false);
+  const copy = async () => {
+    setCopying(true);
+    try {
+      const all = [];
+      const per = 1000; // the store promotions API returns up to 1000 per request
+      const digits = String(search || "").replace(/\D/g, "");
+      for (let pg = 1; pg <= 500; pg++) {
+        const q = new URLSearchParams({ page: pg, limit: per });
+        if (digits) q.set("search", digits);
+        const d = await api(`/store-promotions/${store}/numbers?${q}`);
+        const list = (d && d.numbers) || [];
+        all.push(...list);
+        if (list.length < per || (d && d.total !== undefined && all.length >= d.total)) break;
+      }
+      const seen = new Set(); const numbers = [];
+      all.forEach((r) => { const v = String(r.phone || "").trim(); if (v && !seen.has(v)) { seen.add(v); numbers.push(v); } });
+      if (!numbers.length) { showPopup("error", `There are no ${name} numbers to copy.`, "Nothing to copy"); return; }
+      const ok = await copyToClipboard(numbers.join("\n"));
+      const word = `number${numbers.length === 1 ? "" : "s"}`;
+      if (ok) showPopup("success", `${numbers.length} ${name} phone ${word} copied. You can paste ${numbers.length === 1 ? "it" : "them"} anywhere now.`, "Numbers copied");
+      else showPopup("error", "Your browser blocked copying. Please try again.", "Could not copy");
+    } catch (e) {
+      showPopup("error", e.message, "Could not copy");
+    } finally {
+      setCopying(false);
+    }
+  };
+  return (
+    <button type="button" className="btn secondary" onClick={copy} disabled={copying}
+            title={search ? "Copy the numbers matching the search" : `Copy all ${name} numbers`}>
+      {copying ? "Copying..." : "📋 Copy numbers"}
+    </button>
+  );
+}
 
 export default function StorePromotions({ store }) {
   const name = STORES[store] || store;
@@ -131,12 +176,14 @@ export default function StorePromotions({ store }) {
           <h1 className="page-title">🏬 Store Promotions — {name}</h1>
           <p className="page-sub">Phone numbers for {name} store promotions</p>
         </div>
-        {isAdmin && (
-          <div className="sp-tools">
-            <ExportButton onExport={exportAll} />
-            <CopyNumbersButton fields={["phone"]} getRows={allRows} />
-          </div>
-        )}
+        {/* PREVIOUS: Export + Copy numbers for admin only.
+            UPDATED: Copy numbers for telecallers too; Export stays admin only */}
+        <div className="sp-tools">
+          {isAdmin && <ExportButton onExport={exportAll} />}
+          {/* PREVIOUS: <CopyNumbersButton fields={["phone"]} getRows={allRows} allowTelecallers />
+              UPDATED: own button, always shown to admin AND telecallers */}
+          <StoreCopyButton store={store} name={name} search={search} />
+        </div>
       </div>
 
       <div className="card sp-add">
@@ -175,17 +222,18 @@ export default function StorePromotions({ store }) {
           <input className="sp-search" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} placeholder="Search number..." inputMode="numeric" />
         </div>
         <div className="table-wrap">
-          <table>
+          {/* UPDATED: className sp-table - on phones each number is shown as a compact row */}
+          <table className="sp-table">
             <thead><tr><th>#</th><th>Phone number</th><th>Added by</th><th>Added on</th>{isAdmin && <th></th>}</tr></thead>
             <tbody>
               {rows.length === 0 && <tr><td colSpan={isAdmin ? 5 : 4} className="empty">{search ? "No number matches the search." : `No numbers added for ${name} yet.`}</td></tr>}
               {rows.map((r, i) => (
                 <tr key={r.id}>
-                  <td>{(page - 1) * PER_PAGE + i + 1}</td>
-                  <td>{phoneText(r.phone)}</td>
-                  <td>{r.added_by || "-"}</td>
-                  <td>{fmtTs(r.created_ts)}</td>
-                  {isAdmin && <td><button className="btn small danger" onClick={() => remove(r)}>Remove</button></td>}
+                  <td className="sp-n">{(page - 1) * PER_PAGE + i + 1}</td>
+                  <td className="sp-phone">{phoneText(r.phone)}</td>
+                  <td className="sp-by">{r.added_by || "-"}</td>
+                  <td className="sp-on">{fmtTs(r.created_ts)}</td>
+                  {isAdmin && <td className="sp-del"><button className="btn small danger" onClick={() => remove(r)}>Remove</button></td>}
                 </tr>
               ))}
             </tbody>
