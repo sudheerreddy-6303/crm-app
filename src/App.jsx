@@ -28,6 +28,8 @@ import NotificationBell from "./components/NotificationBell.jsx";
 // ADDED: WhatsApp sidebar menu pages (Meta WhatsApp / Bulk WhatsApp)
 import WhatsAppMeta from "./pages/WhatsAppMeta.jsx";
 import WhatsAppBulk from "./pages/WhatsAppBulk.jsx";
+// ADDED: Store Promotions sidebar menu pages (Suchitra / Nanakramguda)
+import StorePromotions from "./pages/StorePromotions.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -50,6 +52,10 @@ function Shell({ children }) {
   const [waOpen, setWaOpen] = useState(false);
   // true while a real mouse is over the menu (taps on phones are not "hover")
   const waHover = useRef(false);
+  // ADDED: Store Promotions sub-menu - same behaviour as the WhatsApp menu
+  const onStorePromoPage = location.pathname.startsWith("/store-promotions");
+  const [spOpen, setSpOpen] = useState(false);
+  const spHover = useRef(false);
 
   // ADDED: Back button handler (see the button above the page content)
   const goBack = () => {
@@ -106,6 +112,21 @@ function Shell({ children }) {
             <div className="nav-submenu">
               <NavLink to="/whatsapp/meta">Meta WhatsApp</NavLink>
               <NavLink to="/whatsapp/bulk">Bulk WhatsApp</NavLink>
+            </div>
+          </div>
+          {/* ADDED: Store Promotions menu - hover (or tap) shows Suchitra / Nanakramguda */}
+          <div
+            className={`nav-group${spOpen || onStorePromoPage ? " open" : ""}`}
+            onPointerEnter={(e) => { if (e.pointerType === "mouse") { spHover.current = true; setSpOpen(true); } }}
+            onPointerLeave={(e) => { if (e.pointerType === "mouse") { spHover.current = false; setSpOpen(false); } }}
+          >
+            <button type="button" className={`nav-group-btn${onStorePromoPage ? " active" : ""}`}
+                    aria-expanded={spOpen || onStorePromoPage} onClick={() => setSpOpen((o) => (spHover.current ? true : !o))}>
+              <span>🏬 Store Promotions</span><span className="nav-caret" aria-hidden="true">▸</span>
+            </button>
+            <div className="nav-submenu">
+              <NavLink to="/store-promotions/suchitra">Suchitra</NavLink>
+              <NavLink to="/store-promotions/nanakramguda">Nanakramguda</NavLink>
             </div>
           </div>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
@@ -174,6 +195,9 @@ export default function App() {
       {/* ADDED: WhatsApp sidebar menu pages */}
       <Route path="/whatsapp/meta" element={<Protected><WhatsAppMeta /></Protected>} />
       <Route path="/whatsapp/bulk" element={<Protected><WhatsAppBulk /></Protected>} />
+      {/* ADDED: Store Promotions pages */}
+      <Route path="/store-promotions/suchitra" element={<Protected><StorePromotions store="suchitra" /></Protected>} />
+      <Route path="/store-promotions/nanakramguda" element={<Protected><StorePromotions store="nanakramguda" /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
     {/* ADDED: success / error popup after every save (see components/Popup.jsx) */}

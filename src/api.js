@@ -12,7 +12,9 @@ function firePopup(type, text) {
 }
 // UPDATED: "/notifications" added - marking a notification as read is silent
 // ORIGINAL: const NO_POPUP_PATHS = ["/auth/login", "/leads/import"];
-const NO_POPUP_PATHS = ["/auth/login", "/leads/import", "/notifications"];
+// PREVIOUS: const NO_POPUP_PATHS = ["/auth/login", "/leads/import", "/notifications"];
+// UPDATED: + "/store-promotions" - that page shows its own popups with clearer titles
+const NO_POPUP_PATHS = ["/auth/login", "/leads/import", "/notifications", "/store-promotions"];
 
 export function getToken() {
   return localStorage.getItem("telecrm_token");
