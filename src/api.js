@@ -2,6 +2,9 @@
 // ORIGINAL (Vite): const BASE = import.meta.env.VITE_API_URL || "";
 // ADDED (CRA): Create React App reads env variables from process.env.REACT_APP_*
 const BASE = process.env.REACT_APP_API_URL || "";
+// ADDED: backend address for links that open the backend directly
+// (Client Brief link sent to clients on WhatsApp)
+export const API_BASE = BASE;
 
 // ADDED: success / error popup after every save, update, delete, convert,
 // assign and import. Shown by components/Popup.jsx (mounted in App.jsx).

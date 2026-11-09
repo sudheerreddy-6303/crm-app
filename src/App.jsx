@@ -30,6 +30,8 @@ import WhatsAppMeta from "./pages/WhatsAppMeta.jsx";
 import WhatsAppBulk from "./pages/WhatsAppBulk.jsx";
 // ADDED: Store Promotions sidebar menu pages (Suchitra / Nanakramguda)
 import StorePromotions from "./pages/StorePromotions.jsx";
+// ADDED: Client Briefs page (Interior Design Client Brief form sent on WhatsApp)
+import ClientBriefs from "./pages/ClientBriefs.jsx";
 
 function Shell({ children }) {
   const user = getUser();
@@ -129,6 +131,8 @@ function Shell({ children }) {
               <NavLink to="/store-promotions/nanakramguda">Nanakramguda</NavLink>
             </div>
           </div>
+          {/* ADDED: Client Briefs - send the client brief form on WhatsApp, see the answers */}
+          <NavLink to="/client-briefs">📝 Client Briefs</NavLink>
           {user?.role === "admin" && <NavLink to="/telecallers">👥 Telecallers</NavLink>}
           {user?.role === "admin" && <NavLink to="/import">⬆️ Import</NavLink>}
         </nav>
@@ -198,6 +202,8 @@ export default function App() {
       {/* ADDED: Store Promotions pages */}
       <Route path="/store-promotions/suchitra" element={<Protected><StorePromotions store="suchitra" /></Protected>} />
       <Route path="/store-promotions/nanakramguda" element={<Protected><StorePromotions store="nanakramguda" /></Protected>} />
+      {/* ADDED: Client Briefs page */}
+      <Route path="/client-briefs" element={<Protected><ClientBriefs /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
     {/* ADDED: success / error popup after every save (see components/Popup.jsx) */}
