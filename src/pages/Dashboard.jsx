@@ -366,7 +366,6 @@ export default function Dashboard({ asUser = null } = {}) {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
   );

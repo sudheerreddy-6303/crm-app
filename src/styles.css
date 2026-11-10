@@ -916,3 +916,18 @@ input.phone-locked { background: #f1f3f2; color: var(--ink); -webkit-text-fill-c
   .cb-modal { position: absolute; left: 0; top: 0; max-height: none; overflow: visible; box-shadow: none; max-width: 100%; }
   .cb-modal .modal-close, .cb-view-tools, .cb-danger, .cb-wait-btns { display: none !important; }
 }
+
+/* ADDED: Client brief answers shown in the brief form design (View answers) */
+.cb-tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
+.cb-frame { display: block; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #efe8de; min-height: 300px; }
+.cb-view-tools a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+@media (max-width: 640px) { .cb-modal .cb-frame { border-radius: 6px; } }
+.cb-modal { max-width: 960px; } /* ADDED: wider so the brief form fits */
+
+/* ADDED: Client brief - floor plan files in View answers */
+.cb-files { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 2px; padding: 10px 12px; background: #f6faf8; border: 1px solid #d7e8de; border-radius: 10px; }
+.cb-files-label { font-weight: 700; font-size: 13.5px; margin-right: 4px; }
+.cb-file { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--brand); }
+.cb-file:hover { border-color: var(--brand); background: #eef7f1; }
+.cb-file-wrap { display: inline-flex; gap: 4px; max-width: 100%; }
+.cb-file-dl { padding: 6px 9px; }

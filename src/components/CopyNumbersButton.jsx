@@ -21,9 +21,13 @@ export async function copyToClipboard(text) {
   return ok;
 }
 
-export default function CopyNumbersButton({ getRows, fields, className = "btn secondary", label = "📋 Copy numbers" }) {
+// ORIGINAL: export default function CopyNumbersButton({ getRows, fields, className = "btn secondary", label = "📋 Copy numbers" }) {
+// ORIGINAL:   if (getUser()?.role !== "admin") return null; // admin only
+// UPDATED: optional allowTelecallers - a page can let telecallers copy too
+// (used by Store Promotions). Everywhere else it stays admin only.
+export default function CopyNumbersButton({ getRows, fields, className = "btn secondary", label = "📋 Copy numbers", allowTelecallers = false }) {
   const [copying, setCopying] = useState(false);
-  if (getUser()?.role !== "admin") return null; // admin only
+  if (getUser()?.role !== "admin" && !allowTelecallers) return null; // admin only (unless allowed)
 
   const copy = async () => {
     setCopying(true);
@@ -50,7 +54,8 @@ export default function CopyNumbersButton({ getRows, fields, className = "btn se
 
   return (
     <button type="button" className={className} onClick={copy} disabled={copying}
-            title="Copy all phone numbers matching the current search / filters (admin only)">
+            // ORIGINAL: title="Copy all phone numbers matching the current search / filters (admin only)">
+            title="Copy all phone numbers matching the current search / filters">
       {copying ? "Copying..." : label}
     </button>
   );

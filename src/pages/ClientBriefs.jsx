@@ -67,10 +67,80 @@ function BriefPhoto({ id, slot }) {
   );
 }
 
+// ADDED: the client's answers shown in the SAME design as the brief form
+// (read-only page served with the form: /brief/<token>?view=1). Only what the
+// client filled is shown. Phone is masked for telecallers, like everywhere else.
+const briefViewUrl = (token, extra = "") =>
+  `${briefLink(token)}?view=1${getUser()?.role === "admin" ? "" : "&mask=1"}${extra}`;
+
+function BriefFormFrame({ token }) {
+  const ref = useRef(null);
+  const [h, setH] = useState(900);
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (!ref.current || e.source !== ref.current.contentWindow) return;
+      if (e.data && e.data.type === "di-brief-height" && Number(e.data.h) > 0) setH(Math.ceil(Number(e.data.h)) + 4);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+  return (
+    <iframe ref={ref} className="cb-frame" title="Client brief answers" src={briefViewUrl(token)} style={{ height: h }} />
+  );
+}
+
+// ADDED: floor plan files the client attached ("Attach floor plan" in Section 2)
+const fileSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+async function openBriefFile(briefId, f) {
+  const w = window.open("", "_blank"); // opened first so the browser does not block it
+  try {
+    const r = await fetch(`${API_BASE}/api/client-briefs/${briefId}/files/${f.id}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (!r.ok) throw new Error("This file could not be opened.");
+    const url = URL.createObjectURL(await r.blob());
+    if (w) w.location.href = url;
+    else { const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    if (w) w.close();
+    showPopup("error", e.message || "This file could not be opened.", "Could not open file");
+  }
+}
+// ADDED: save the file with its real name
+async function downloadBriefFile(briefId, f) {
+  try {
+    const r = await fetch(`${API_BASE}/api/client-briefs/${briefId}/files/${f.id}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (!r.ok) throw new Error("This file could not be downloaded.");
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a"); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    showPopup("error", e.message || "This file could not be downloaded.", "Could not download");
+  }
+}
+function BriefFiles({ brief }) {
+  const files = brief.files || [];
+  return (
+    <div className="cb-files">
+      <span className="cb-files-label">📐 Floor plan</span>
+      {files.length === 0 && <span className="cb-small">Not attached</span>}
+      {files.map((f) => (
+        <span key={f.id} className="cb-file-wrap">
+          <button type="button" className="cb-file" onClick={() => openBriefFile(brief.id, f)} title="Open">
+            {/pdf/i.test(f.mime) ? "📄" : "🖼"} {f.name} <span className="cb-small">({fileSize(f.size)})</span>
+          </button>
+          <button type="button" className="cb-file cb-file-dl" onClick={() => downloadBriefFile(brief.id, f)} title="Download">⬇</button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function BriefView({ id, onClose, onDeleted }) {
   const isAdmin = getUser()?.role === "admin";
   const [b, setB] = useState(null);
   const [err, setErr] = useState("");
+  // ADDED: "Brief form" (same design as the client's form) or "List" (the earlier view)
+  const [mode, setMode] = useState("form");
   useEffect(() => {
     api(`/client-briefs/${id}`).then((d) => setB(d.brief)).catch((e) => setErr(e.message));
   }, [id]);
@@ -112,7 +182,10 @@ function BriefView({ id, onClose, onDeleted }) {
               </div>
               <div className="cb-view-tools">
                 {b.status === "submitted" && <button type="button" className="btn secondary small" onClick={copyAnswers}>📋 Copy answers</button>}
-                {b.status === "submitted" && <button type="button" className="btn secondary small" onClick={() => window.print()}>🖨 Print</button>}
+                {/* PREVIOUS: {b.status === "submitted" && <button type="button" className="btn secondary small" onClick={() => window.print()}>🖨 Print</button>}
+                    UPDATED: Print prints the open view - the brief form opens in a new tab and prints there */}
+                {b.status === "submitted" && <button type="button" className="btn secondary small" onClick={() => (mode === "form" ? window.open(briefViewUrl(b.token, "&print=1"), "_blank", "noopener") : window.print())}>🖨 Print</button>}
+                {b.status === "submitted" && <a className="btn secondary small" href={briefViewUrl(b.token)} target="_blank" rel="noreferrer">↗ Open full page</a>}
               </div>
             </div>
 
@@ -126,13 +199,28 @@ function BriefView({ id, onClose, onDeleted }) {
               </div>
             )}
 
-            {b.photos && b.photos.length > 0 && (
+            {/* ADDED: floor plan files (open / download) */}
+            <BriefFiles brief={b} />
+
+            {/* ADDED: Brief form / List switch */}
+            {b.status === "submitted" && (
+              <div className="cb-tabs">
+                <button type="button" className={`cb-chip${mode === "form" ? " on" : ""}`} onClick={() => setMode("form")}>📄 Brief form</button>
+                <button type="button" className={`cb-chip${mode === "list" ? " on" : ""}`} onClick={() => setMode("list")}>☰ List</button>
+              </div>
+            )}
+            {b.status === "submitted" && mode === "form" && <BriefFormFrame token={b.token} />}
+
+            {/* UPDATED: the earlier list view - now shown under the "List" tab
+                ORIGINAL: {b.photos && b.photos.length > 0 && (
+                ORIGINAL: {(b.answers || []).map((sec) => ( */}
+            {mode === "list" && b.photos && b.photos.length > 0 && (
               <div className="cb-section">
                 <h3>Inspiration photos</h3>
                 <div className="cb-photos">{b.photos.map((p) => <BriefPhoto key={p.slot} id={b.id} slot={p.slot} />)}</div>
               </div>
             )}
-            {(b.answers || []).map((sec) => (
+            {mode === "list" && (b.answers || []).map((sec) => (
               <div className="cb-section" key={sec.section}>
                 <h3>{sec.section}</h3>
                 <dl className="cb-answers">
@@ -212,11 +300,14 @@ export default function ClientBriefs() {
       }
       const base = {
         "Brief no.": r.brief_no, "Client": r.client_name, "WhatsApp": r.phone, "Status": STATUS[r.status].label,
-        "Name (filled)": r.filled_name, "Phone (filled)": r.filled_phone, "Email": r.email, "City & area": r.city_area,
+        // ORIGINAL: "Name (filled)": r.filled_name, "Phone (filled)": r.filled_phone, "Email": r.email, "City & area": r.city_area,
+        "Name (filled)": r.filled_name, "Phone (filled)": r.filled_phone, "Email": r.email, "State": r.state || "", "City": r.city || "", "Location": r.location || "", "City & area": r.city_area,
         "Property type": r.property_type, "Configuration": r.configuration, "Budget": r.budget,
         "Lead": r.lead_name || "", "Created by": r.created_by_name || "", "Sent on": fmtTs(r.created_ts),
         "Submitted on": fmtTs(r.submitted_ts), "Link": briefLink(r.token),
       };
+      // ADDED: floor plan file names
+      try { base["Floor plan files"] = ((await api(`/client-briefs/${r.id}`)).brief.files || []).map((x) => x.name).join(", "); } catch { base["Floor plan files"] = ""; }
       answers.forEach((s) => s.items.forEach((it) => { base[`${s.section} | ${it.q}`] = it.a; }));
       rowsX.push(base);
     }
