@@ -23,6 +23,10 @@ import ProjectViewModal from "../components/ProjectViewModal.jsx";
 import ExportButton from "../components/ExportButton.jsx";
 import { fetchAllPages, downloadExcel, d10 } from "../utils/exportExcel.js";
 import { showPopup } from "../components/Popup.jsx";
+// ADDED: multi-select dropdown for the State / City / Location filters
+import MultiSelect from "../components/MultiSelect.jsx";
+// ADDED: Telangana / Andhra Pradesh cities + areas for the filter options
+import { STATES, citiesOf, areasFor, stateOfCity } from "../utils/apTsCities.js";
 
 // ADDED: Project Details page - table of all projects, search + type/status
 // filters, and a top-right "+ Add project" button. Mirrors the Walk-ins page.
@@ -56,6 +60,17 @@ export default function ProjectDetails() {
   const [projects, setProjects] = useState([]);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({ search: "", type: "", status: "" });
+  // ADDED: State / City / Location filters - several values can be ticked in each
+  const [locF, setLocF] = useState({ states: [], cities: [], locations: [] });
+  const [places, setPlaces] = useState([]); // every state / city / location saved on projects
+  // the 3 filters as API values (several values joined with "|")
+  const locParams = () => {
+    const o = {};
+    if (locF.states.length) o.states = locF.states.join("|");
+    if (locF.cities.length) o.cities = locF.cities.join("|");
+    if (locF.locations.length) o.locations = locF.locations.join("|");
+    return o;
+  };
   const [page, setPage] = useState(1);
   // ORIGINAL: const limit = 50;  (now: 2 rows of cards per page, 50 in Table view - see useTwoRowLimit below)
   const [modalProject, setModalProject] = useState(null);
@@ -93,12 +108,15 @@ export default function ProjectDetails() {
     if (filters.search) q.set("search", filters.search);
     if (filters.type) q.set("type", filters.type);
     if (filters.status) q.set("status", filters.status);
+    Object.entries(locParams()).forEach(([k, v]) => q.set(k, v)); // ADDED: State / City / Location
+    api("/projects/filter-options").then((d) => setPlaces(d.places || [])).catch(() => {}); // ADDED: refresh the filter options
     api(`/projects?${q}`)
       // ORIGINAL: .then((d) => { setProjects(d.projects); setTotal(d.total); })
       .then((d) => { if (seq !== loadSeq.current) return; setProjects(d.projects); setTotal(d.total); })
       .catch((e) => setMsg({ type: "error", text: e.message }));
   // ORIGINAL: }, [page, filters]);
-  }, [page, filters, limit]);
+  // PREVIOUS: }, [page, filters, limit]);
+  }, [page, filters, limit, locF]); // UPDATED: reload when State / City / Location change
 
   useEffect(() => { load(); }, [load]);
 
@@ -133,6 +151,7 @@ export default function ProjectDetails() {
         if (filters.search) q.set("search", filters.search);
         if (filters.type) q.set("type", filters.type);
         if (filters.status) q.set("status", filters.status);
+        Object.entries(locParams()).forEach(([k, v]) => q.set(k, v)); // ADDED: State / City / Location
         const d = await api(`/projects?${q}`);
         all.push(...(d.projects || []));
         if (!d.projects || d.projects.length < per || all.length >= d.total) break;
@@ -183,7 +202,8 @@ export default function ProjectDetails() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {/* ADDED: full Export to Excel (admin only) - every project detail + the summary cards */}
           {isAdmin && <ExportButton onExport={async () => {
-            const rows = await fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects");
+            // ORIGINAL: const rows = await fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects");
+            const rows = await fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status, ...locParams() /* ADDED */ }, "projects");
             return downloadExcel([
               { name: "Project details", rows: rows.map((p) => ({
                 "Project name": p.project_name || "", "Type": p.type || "", "Status": p.status || "",
@@ -214,7 +234,8 @@ export default function ProjectDetails() {
           </button>
           )}
           {/* ADDED: copy owner / secondary / phone 1 / phone 2 numbers (admin only) */}
-          <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2", "sales_exec1_phone", "sales_exec2_phone"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects")} />
+          {/* ORIGINAL: <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2", "sales_exec1_phone", "sales_exec2_phone"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status }, "projects")} /> */}
+          <CopyNumbersButton fields={["owner_contact", "secondary_number", "phone1", "phone2", "sales_exec1_phone", "sales_exec2_phone"]} getRows={() => fetchAllPages("/projects", { search: filters.search, type: filters.type, status: filters.status, ...locParams() /* ADDED */ }, "projects")} />
           <button className="btn" onClick={() => setModalProject({})}>+ Add project</button>
         </div>
       </div>
@@ -286,6 +307,52 @@ export default function ProjectDetails() {
           <option value="">All statuses</option>
           {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* ADDED: State / City / Location - tick one or more in each */}
+        {(() => {
+          const uniq = (arr) => [...new Map(arr.filter(Boolean).map((v) => [v.toLowerCase(), v])).values()].sort((a, b) => a.localeCompare(b));
+          const inL = (list, v) => list.some((x) => x.toLowerCase() === String(v || "").toLowerCase());
+          // PREVIOUS: options came only from the values saved on projects (empty when no project had a state).
+          // UPDATED: always the Telangana / Andhra Pradesh list (same as the forms) + any other value typed on projects.
+          // A saved project without state / city gets them from its city / location (for the lists below).
+          const full = places.map((p) => {
+            const city = p.city || (STATES.flatMap(citiesOf).find((c) => inL(areasFor(c), p.location)) || "");
+            return { state: p.state || stateOfCity(city) || "", city, location: p.location };
+          });
+          const optsFor = (sel) => {
+            const st = sel.states;
+            const stateOpts = uniq([...STATES, ...full.map((p) => p.state)]);
+            const cityList = st.length ? st.flatMap((x) => citiesOf(STATES.find((S) => S.toLowerCase() === x.toLowerCase()) || x)) : STATES.flatMap(citiesOf);
+            const cityPool = st.length ? full.filter((p) => inL(st, p.state)) : full;
+            const cityOpts = uniq([...cityList, ...cityPool.map((p) => p.city)]);
+            const ct = sel.cities;
+            const areaCities = ct.length ? ct : cityOpts;
+            const locPool = ct.length ? cityPool.filter((p) => inL(ct, p.city)) : cityPool;
+            const locOpts = uniq([...areaCities.flatMap((c) => areasFor(c)), ...locPool.map((p) => p.location)]);
+            return { stateOpts, cityOpts, locOpts };
+          };
+          const { stateOpts, cityOpts, locOpts } = optsFor(locF);
+          const change = (key, val) => {
+            setPage(1);
+            setLocF((cur) => {
+              const next = { ...cur, [key]: val };
+              // keep only cities / locations that belong to the chosen states / cities
+              const o1 = optsFor({ ...next, cities: [] });
+              next.cities = next.cities.filter((c) => inL(o1.cityOpts, c));
+              const o2 = optsFor(next);
+              next.locations = next.locations.filter((l) => inL(o2.locOpts, l));
+              return next;
+            });
+          };
+          const any = locF.states.length + locF.cities.length + locF.locations.length > 0;
+          return (
+            <>
+              <MultiSelect label="State" plural="states" options={stateOpts} value={locF.states} onChange={(v) => change("states", v)} emptyText="No state saved on projects yet" />
+              <MultiSelect label="City" plural="cities" options={cityOpts} value={locF.cities} onChange={(v) => change("cities", v)} emptyText="No city saved for this state" />
+              <MultiSelect label="Location" plural="locations" options={locOpts} value={locF.locations} onChange={(v) => change("locations", v)} emptyText="No location saved for this city" />
+              {any && <button type="button" className="btn small secondary" onClick={() => { setPage(1); setLocF({ states: [], cities: [], locations: [] }); }}>✕ Clear places</button>}
+            </>
+          );
+        })()}
         {/* ADDED: Cards / Table switch (same as the Leads page) */}
         <div className="view-toggle" role="group" aria-label="View">
           <button className={`btn small ${viewMode === "cards" ? "" : "secondary"}`} onClick={() => setViewMode("cards")}>▦ Cards</button>
